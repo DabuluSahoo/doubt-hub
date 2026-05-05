@@ -1,6 +1,6 @@
 'use client';
 import { use, useCallback, useEffect, useState } from 'react';
-import { supabase, Question, Solution } from '@/lib/supabase';
+import { supabase, Question } from '@/lib/supabase';
 import { useUser, useToast } from '@/components/Providers';
 import ImageCarousel from '@/components/ImageCarousel';
 import UploadZone, { PreviewFile } from '@/components/UploadZone';
@@ -8,7 +8,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import {
   ChevronRight, Pencil, Save, X, CheckCircle2, Clock, HelpCircle,
-  ImagePlus, FileText, Trash2, RotateCcw
+  ImagePlus, FileText, Trash2, RotateCcw, Plus, User as UserIcon
 } from 'lucide-react';
 
 type Props = { params: Promise<{ id: string }> };
@@ -30,13 +30,12 @@ export default function QuestionPage({ params }: Props) {
   const router = useRouter();
 
   const [question, setQuestion] = useState<Question | null>(null);
-  const [solution, setSolution] = useState<Solution | null>(null);
+  const [solutions, setSolutions] = useState<any[]>([]);
   const [qImages, setQImages] = useState<string[]>([]);
-  const [sImages, setSImages] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
 
   // Solution edit state
-  const [editingSolution, setEditingSolution] = useState(false);
+  const [editingSolutionId, setEditingSolutionId] = useState<string | null>(null); // 'new' or UUID
   const [solutionText, setSolutionText] = useState('');
   const [solutionFiles, setSolutionFiles] = useState<PreviewFile[]>([]);
   const [savingSolution, setSavingSolution] = useState(false);
@@ -64,16 +63,8 @@ export default function QuestionPage({ params }: Props) {
       .map((i: any) => getImageUrl(i.storage_path));
     setQImages(imgs);
 
-    const sol = q.solutions?.[0] || null;
-    setSolution(sol);
-    setSolutionText(sol?.text_content || '');
-
-    if (sol?.solution_images) {
-      const simgs = sol.solution_images
-        .sort((a: any, b: any) => a.page_order - b.page_order)
-        .map((i: any) => getImageUrl(i.storage_path));
-      setSImages(simgs);
-    }
+    const sols = (q.solutions || []).sort((a: any, b: any) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
+    setSolutions(sols);
 
     // Fetch sibling question IDs for navigation
     const { data: siblings } = await supabase
@@ -95,37 +86,27 @@ export default function QuestionPage({ params }: Props) {
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      // Don't trigger if user is typing
-      if (['INPUT', 'TEXTAREA'].includes((e.target as HTMLElement)?.tagName)) {
-        return;
-      }
-      
-      if (e.key === 'ArrowLeft' && prevQ) {
-        router.push(`/questions/${prevQ}`);
-      } else if (e.key === 'ArrowRight' && nextQ) {
-        router.push(`/questions/${nextQ}`);
-      }
+      if (['INPUT', 'TEXTAREA'].includes((e.target as HTMLElement)?.tagName)) return;
+      if (e.key === 'ArrowLeft' && prevQ) router.push(`/questions/${prevQ}`);
+      else if (e.key === 'ArrowRight' && nextQ) router.push(`/questions/${nextQ}`);
     };
-
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [prevQ, nextQ, router]);
 
-  /* ─── Save Solution ──────────────────────────────── */
   const saveSolution = async () => {
     setSavingSolution(true);
     try {
-      let solId = solution?.id;
+      const isNew = editingSolutionId === 'new';
+      let solId = isNew ? null : editingSolutionId;
 
-      if (solId) {
-        // Update existing
+      if (!isNew && solId) {
         await supabase.from('solutions').update({
           text_content: solutionText.trim() || null,
           updated_by_name: user?.username || 'Anonymous',
           updated_at: new Date().toISOString(),
         }).eq('id', solId);
       } else {
-        // Create new
         const { data: newSol, error } = await supabase.from('solutions').insert({
           question_id: id,
           text_content: solutionText.trim() || null,
@@ -136,29 +117,26 @@ export default function QuestionPage({ params }: Props) {
         solId = newSol.id;
       }
 
-      // Upload new solution images
       for (let i = 0; i < solutionFiles.length; i++) {
         const f = solutionFiles[i];
         const path = `solutions/${solId}/${Date.now()}_${i}.webp`;
-        const { error: upErr } = await supabase.storage
-          .from('doubt-images')
-          .upload(path, f.file, { contentType: 'image/webp' });
+        const { error: upErr } = await supabase.storage.from('doubt-images').upload(path, f.file, { contentType: 'image/webp' });
         if (upErr) throw upErr;
-        const existingCount = sImages.length;
-        await supabase.from('solution_images').insert({
-          solution_id: solId, storage_path: path, page_order: existingCount + i,
-        });
+        
+        const sol = solutions.find(s => s.id === solId);
+        const existingCount = sol?.solution_images?.length || 0;
+        await supabase.from('solution_images').insert({ solution_id: solId, storage_path: path, page_order: existingCount + i });
       }
 
-      // Auto-mark as solved if solution is added
       if (question?.status === 'unsolved') {
         await supabase.from('questions').update({ status: 'in_progress' }).eq('id', id);
       }
 
       toast('Solution saved ✓');
-      setEditingSolution(false);
-      setShowSolution(true);
+      setEditingSolutionId(null);
+      setSolutionText('');
       setSolutionFiles([]);
+      setShowSolution(true);
       fetchAll();
     } catch (e: any) {
       toast(e.message || 'Failed to save', 'error');
@@ -166,11 +144,20 @@ export default function QuestionPage({ params }: Props) {
     setSavingSolution(false);
   };
 
-  const deleteSolutionImage = async (imgPath: string, imgId: string) => {
-    await supabase.storage.from('doubt-images').remove([imgPath]);
-    await supabase.from('solution_images').delete().eq('id', imgId);
-    toast('Image removed');
-    fetchAll();
+  const deleteSolution = async (solId: string) => {
+    if (!confirm('Are you sure you want to delete this solution?')) return;
+    try {
+      const sol = solutions.find(s => s.id === solId);
+      if (sol?.solution_images) {
+        const paths = sol.solution_images.map((img: any) => img.storage_path);
+        if (paths.length > 0) await supabase.storage.from('doubt-images').remove(paths);
+      }
+      await supabase.from('solutions').delete().eq('id', solId);
+      toast('Solution deleted ✓');
+      fetchAll();
+    } catch (e: any) {
+      toast(e.message || 'Failed to delete solution', 'error');
+    }
   };
 
   const updateStatus = async (status: string) => {
@@ -181,32 +168,8 @@ export default function QuestionPage({ params }: Props) {
     setUpdatingStatus(false);
   };
 
-  const deleteSolution = async () => {
-    if (!solution) return;
-    if (!confirm('Are you sure you want to delete this solution?')) return;
-
-    try {
-      // 1. Delete all solution images from storage
-      const { data: images } = await supabase.from('solution_images').select('storage_path').eq('solution_id', solution.id);
-      if (images && images.length > 0) {
-        const paths = images.map(img => img.storage_path);
-        await supabase.storage.from('doubt-images').remove(paths);
-      }
-
-      // 2. Delete the solution (on delete cascade handles solution_images)
-      await supabase.from('solutions').delete().eq('id', solution.id);
-
-      toast('Solution deleted ✓');
-      fetchAll();
-    } catch (e: any) {
-      toast(e.message || 'Failed to delete solution', 'error');
-    }
-  };
-
   if (loading) return <div className="page"><div className="container"><div className="loading-state"><div className="spinner" /></div></div></div>;
   if (!question) return <div className="page"><div className="container"><div className="empty-state"><div className="empty-title">Question not found</div></div></div></div>;
-
-  const currentStatus = STATUS_OPTIONS.find((s) => s.value === question.status)!;
 
   return (
     <div className="page">
@@ -220,199 +183,104 @@ export default function QuestionPage({ params }: Props) {
               <ChevronRight size={14} />
               <span>Detail</span>
             </div>
-
             <div style={{ display: 'flex', gap: 8 }}>
-              <Link
-                href={prevQ ? `/questions/${prevQ}` : '#'}
-                className={`btn btn-sm ${prevQ ? 'btn-ghost' : 'btn-disabled'}`}
-                style={{ width: 'auto', padding: '6px 12px', opacity: prevQ ? 1 : 0.3, pointerEvents: prevQ ? 'auto' : 'none' }}
-                title="Previous Question"
-              >
-                ← Prev
-              </Link>
-              <Link
-                href={nextQ ? `/questions/${nextQ}` : '#'}
-                className={`btn btn-sm ${nextQ ? 'btn-ghost' : 'btn-disabled'}`}
-                style={{ width: 'auto', padding: '6px 12px', opacity: nextQ ? 1 : 0.3, pointerEvents: nextQ ? 'auto' : 'none' }}
-                title="Next Question"
-              >
-                Next →
-              </Link>
+              <Link href={prevQ ? `/questions/${prevQ}` : '#'} className={`btn btn-sm ${prevQ ? 'btn-ghost' : 'btn-disabled'}`} style={{ width: 'auto', padding: '6px 12px', opacity: prevQ ? 1 : 0.3, pointerEvents: prevQ ? 'auto' : 'none' }}>← Prev</Link>
+              <Link href={nextQ ? `/questions/${nextQ}` : '#'} className={`btn btn-sm ${nextQ ? 'btn-ghost' : 'btn-disabled'}`} style={{ width: 'auto', padding: '6px 12px', opacity: nextQ ? 1 : 0.3, pointerEvents: nextQ ? 'auto' : 'none' }}>Next →</Link>
             </div>
           </div>
         </div>
 
-        {/* Title + Meta */}
         <div style={{ marginBottom: 28 }}>
           <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap' }}>
             <h1 className="page-title" style={{ fontSize: '1.6rem' }}>{question.title}</h1>
-            {/* Status Selector */}
             <div style={{ display: 'flex', gap: 8 }}>
               {STATUS_OPTIONS.map((s) => (
-                <button
-                  key={s.value}
-                  className={`btn btn-sm ${question.status === s.value ? s.cls : 'btn-ghost'}`}
-                  onClick={() => updateStatus(s.value)}
-                  disabled={updatingStatus || question.status === s.value}
-                  style={question.status === s.value ? { background: 'none', border: '1.5px solid currentColor', opacity: 1 } : {}}
-                  title={`Mark as ${s.label}`}
-                >
-                  {s.icon} {s.label}
-                </button>
+                <button key={s.value} className={`btn btn-sm ${question.status === s.value ? s.cls : 'btn-ghost'}`} onClick={() => updateStatus(s.value)} disabled={updatingStatus || question.status === s.value} style={question.status === s.value ? { background: 'none', border: '1.5px solid currentColor', opacity: 1 } : {}}>{s.icon} {s.label}</button>
               ))}
             </div>
           </div>
-
-          {question.description && (
-            <p style={{ color: 'var(--text-secondary)', marginTop: 8, lineHeight: 1.6 }}>{question.description}</p>
-          )}
-
-          <div className="detail-meta">
-            <div className="meta-chip">👤 Uploaded by <strong>{question.uploaded_by_name}</strong></div>
-            <div className="meta-chip">🕐 {new Date(question.created_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}</div>
-            <div className="meta-chip">📸 {qImages.length} image{qImages.length !== 1 ? 's' : ''}</div>
+          <div className="detail-meta" style={{ marginTop: 12 }}>
+            <div className="meta-chip"><UserIcon size={14} /> {question.uploaded_by_name}</div>
+            <div className="meta-chip"><Clock size={14} /> {new Date(question.created_at).toLocaleDateString()}</div>
           </div>
+          {question.description && <div style={{ marginTop: 16, color: 'var(--text-secondary)', lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>{question.description}</div>}
         </div>
 
-        {/* Main Layout */}
         <div className="detail-layout">
-
-          {/* LEFT: Question Images */}
           <div className="detail-column">
-            <div className="detail-section-title" style={{ position: 'sticky', top: 0, background: 'var(--bg-primary)', zIndex: 10, paddingBottom: 12 }}>
-              <FileText size={14} /> Question
-            </div>
-            {qImages.length > 0
-              ? <ImageCarousel images={qImages} />
-              : (
-                <div className="empty-placeholder">
-                  <div style={{ fontSize: '2rem', marginBottom: 8 }}>📷</div>
-                  <div style={{ fontWeight: 600 }}>No images attached</div>
-                </div>
-              )}
+            <div className="detail-section-title"><ImagePlus size={16} /> Question Images</div>
+            {qImages.length > 0 ? <ImageCarousel images={qImages} /> : <div className="empty-placeholder">No images provided</div>}
           </div>
 
-          {/* RIGHT: Solution */}
           <div className="detail-column">
-            <div className="detail-section-title" style={{ justifyContent: 'space-between', position: 'sticky', top: 0, background: 'var(--bg-primary)', zIndex: 10, paddingBottom: 12 }}>
-              <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <CheckCircle2 size={14} /> Solution
-              </span>
-              <div style={{ display: 'flex', gap: 6 }}>
-                {editingSolution ? (
-                  <>
-                    <button className="btn btn-ghost btn-sm" onClick={() => { setEditingSolution(false); setSolutionFiles([]); setSolutionText(solution?.text_content || ''); }}>
-                      <RotateCcw size={12} /> Discard
-                    </button>
-                    <button className="btn btn-primary btn-sm" onClick={saveSolution} disabled={savingSolution}>
-                      <Save size={12} /> {savingSolution ? 'Saving...' : 'Save'}
-                    </button>
-                  </>
-                ) : (
-                  <div style={{ display: 'flex', gap: 6 }}>
-                    {solution && (isAdmin || (user && ((solution as any).author_id === user.id || (!(solution as any).author_id && solution.created_by_name === user.username)))) && (
-                      <button className="btn btn-danger btn-sm btn-icon" onClick={deleteSolution} title="Delete solution">
-                        <Trash2 size={12} />
-                      </button>
-                    )}
-                    {(!solution || isAdmin || (user && ((solution as any).author_id === user.id || (!(solution as any).author_id && (solution as any).created_by_name === user.username)))) && (
-                      user ? (
-                        <button className="btn btn-ghost btn-sm" onClick={() => setEditingSolution(true)} id="edit-solution-btn">
-                          <Pencil size={12} /> {solution ? 'Edit' : 'Add Solution'}
-                        </button>
-                      ) : !solution && (
-                        <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontStyle: 'italic' }}>
-                          Login to contribute a solution
-                        </div>
-                      )
-                    )}
-                  </div>
-                )}
-              </div>
+            <div className="detail-section-title" style={{ justifyContent: 'space-between' }}>
+              <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}><FileText size={16} /> Solutions</span>
+              {(isAdmin || (user && solutions.length === 0)) && !editingSolutionId && (
+                <button className="btn btn-primary btn-sm" onClick={() => { setEditingSolutionId('new'); setSolutionText(''); setSolutionFiles([]); }}><Plus size={14} /> Add Solution</button>
+              )}
             </div>
 
-            {/* View mode */}
-            {!editingSolution && (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-                {solution || sImages.length > 0 ? (
-                  !showSolution ? (
-                    <div className="empty-placeholder" style={{ borderStyle: 'solid' }}>
-                      <div style={{ fontSize: '2rem', marginBottom: 16 }}>👀</div>
-                      <div style={{ fontWeight: 600, marginBottom: 16, color: 'var(--text-primary)' }}>Solution is hidden to prevent spoilers</div>
-                      <button className="btn btn-primary" onClick={() => setShowSolution(true)}>
-                        Reveal Solution
-                      </button>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
+              {editingSolutionId === 'new' && (
+                <div className="card" style={{ padding: 20, borderColor: 'var(--accent)' }}>
+                  <div className="solution-panel">
+                    <textarea className="rich-editor" placeholder="Write your explanation here..." value={solutionText} onChange={(e) => setSolutionText(e.target.value)} />
+                    <UploadZone files={solutionFiles} setFiles={setSolutionFiles} hint="Add solution diagrams/images" />
+                    <div className="modal-footer" style={{ marginTop: 16 }}>
+                      <button className="btn btn-ghost" onClick={() => setEditingSolutionId(null)}>Cancel</button>
+                      <button className="btn btn-primary" onClick={saveSolution} disabled={savingSolution}>{savingSolution ? 'Saving...' : 'Post Solution'}</button>
                     </div>
-                  ) : (
-                    <>
-                      {sImages.length > 0 && <ImageCarousel images={sImages} maxHeight={420} />}
-                      {solution?.text_content && (
-                        <div style={{
-                          background: 'var(--bg-card)', border: '1px solid var(--border)',
-                          borderRadius: 'var(--radius-md)', padding: '16px 18px',
-                          color: 'var(--text-primary)', lineHeight: 1.75, whiteSpace: 'pre-wrap',
-                          fontSize: '0.9375rem'
-                        }}>
-                          {solution.text_content}
-                        </div>
-                      )}
-                      {solution && (
-                        <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
-                          {solution.updated_by_name
-                            ? `Last edited by ${solution.updated_by_name} · ${new Date(solution.updated_at).toLocaleDateString()}`
-                            : `Added by ${solution.created_by_name} · ${new Date(solution.created_at).toLocaleDateString()}`}
-                        </div>
-                      )}
-                    </>
-                  )
-                ) : (
-                  <div className="empty-placeholder">
-                    <div style={{ fontSize: '2rem', marginBottom: 8 }}>💡</div>
-                    <div style={{ fontWeight: 600, marginBottom: 4 }}>No solution yet</div>
-                    <div style={{ fontSize: '0.8rem' }}>Click "Add Solution" to contribute!</div>
                   </div>
-                )}
-              </div>
-            )}
+                </div>
+              )}
 
-            {/* Edit mode */}
-            {editingSolution && (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-                {/* Existing solution images */}
-                {sImages.length > 0 && (
-                  <div>
-                    <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: 8 }}>Existing images (click × to remove):</div>
-                    <div className="image-preview-strip">
-                      {(solution?.images || []).sort((a, b) => a.page_order - b.page_order).map((img, i) => (
-                        <div key={img.id} className="image-preview-item">
-                          <img src={getImageUrl(img.storage_path)} alt={`sol-${i}`} />
-                          <div className="image-preview-remove" onClick={() => deleteSolutionImage(img.storage_path, img.id)}>
-                            <X size={10} />
+              {solutions.length === 0 && !editingSolutionId && <div className="empty-placeholder">{user ? 'No solutions yet. Be the first to help!' : 'Login to contribute a solution'}</div>}
+
+              {solutions.map((sol) => {
+                const isEditing = editingSolutionId === sol.id;
+                const canEdit = isAdmin || (user && (sol.author_id === user.id || (!sol.author_id && sol.created_by_name === user.username)));
+                const sImgs = (sol.solution_images || []).sort((a: any, b: any) => a.page_order - b.page_order).map((i: any) => getImageUrl(i.storage_path));
+
+                return (
+                  <div key={sol.id} className="card" style={{ overflow: 'visible' }}>
+                    <div className="card-body">
+                      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 16 }}>
+                        <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>By <strong>{sol.created_by_name}</strong> • {new Date(sol.created_at).toLocaleDateString()}</div>
+                        <div style={{ display: 'flex', gap: 8 }}>
+                          {canEdit && !isEditing && (
+                            <>
+                              <button className="btn btn-ghost btn-sm btn-icon" onClick={() => { setEditingSolutionId(sol.id); setSolutionText(sol.text_content || ''); setSolutionFiles([]); }}><Pencil size={14} /></button>
+                              <button className="btn btn-danger btn-sm btn-icon" onClick={() => deleteSolution(sol.id)}><Trash2 size={14} /></button>
+                            </>
+                          )}
+                        </div>
+                      </div>
+                      {isEditing ? (
+                        <div className="solution-panel">
+                          <textarea className="rich-editor" value={solutionText} onChange={(e) => setSolutionText(e.target.value)} />
+                          <UploadZone files={solutionFiles} setFiles={setSolutionFiles} />
+                          <div className="modal-footer">
+                            <button className="btn btn-ghost" onClick={() => setEditingSolutionId(null)}>Cancel</button>
+                            <button className="btn btn-primary" onClick={saveSolution} disabled={savingSolution}>{savingSolution ? 'Saving...' : 'Update Solution'}</button>
                           </div>
                         </div>
-                      ))}
+                      ) : (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                          {!showSolution ? (
+                            <div className="empty-placeholder" style={{ borderStyle: 'solid', minHeight: 180 }}><button className="btn btn-primary" onClick={() => setShowSolution(true)}>Reveal Solution</button></div>
+                          ) : (
+                            <>
+                              {sImgs.length > 0 && <ImageCarousel images={sImgs} maxHeight={420} />}
+                              {sol.text_content && <div style={{ lineHeight: 1.7, whiteSpace: 'pre-wrap' }}>{sol.text_content}</div>}
+                            </>
+                          )}
+                        </div>
+                      )}
                     </div>
                   </div>
-                )}
-
-                <div className="form-group">
-                  <label className="form-label">Written Solution</label>
-                  <textarea
-                    className="rich-editor"
-                    placeholder="Type your solution, explanation, or steps here..."
-                    value={solutionText}
-                    onChange={(e) => setSolutionText(e.target.value)}
-                    rows={6}
-                    autoFocus
-                  />
-                </div>
-
-                <div className="form-group">
-                  <label className="form-label">Add Solution Images (handwritten notes, diagrams...)</label>
-                  <UploadZone onFilesChange={setSolutionFiles} label="solution images" />
-                </div>
-              </div>
-            )}
+                );
+              })}
+            </div>
           </div>
         </div>
       </div>
