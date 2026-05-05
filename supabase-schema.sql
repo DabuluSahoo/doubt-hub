@@ -25,6 +25,7 @@ create table questions (
   status          text not null default 'unsolved'
                     check (status in ('unsolved', 'in_progress', 'solved')),
   uploaded_by_name text not null default 'Anonymous',
+  user_id         text,
   created_at      timestamptz default now(),
   updated_at      timestamptz default now()
 );
@@ -44,6 +45,7 @@ create table solutions (
   question_id       uuid not null references questions(id) on delete cascade,
   text_content      text,
   created_by_name   text not null default 'Anonymous',
+  user_id           text,
   updated_by_name   text,
   created_at        timestamptz default now(),
   updated_at        timestamptz default now()

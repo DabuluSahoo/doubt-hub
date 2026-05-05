@@ -25,7 +25,7 @@ function getImageUrl(path: string) {
 
 export default function QuestionPage({ params }: Props) {
   const { id } = use(params);
-  const { username, isAdmin } = useUser();
+  const { username, isAdmin, userId } = useUser();
   const { toast } = useToast();
   const router = useRouter();
 
@@ -130,6 +130,7 @@ export default function QuestionPage({ params }: Props) {
           question_id: id,
           text_content: solutionText.trim() || null,
           created_by_name: username,
+          user_id: userId,
         }).select().single();
         if (error) throw error;
         solId = newSol.id;
@@ -308,12 +309,12 @@ export default function QuestionPage({ params }: Props) {
                   </>
                 ) : (
                   <div style={{ display: 'flex', gap: 6 }}>
-                    {solution && (isAdmin || solution.created_by_name === username) && (
+                    {solution && (isAdmin || (solution.user_id ? solution.user_id === userId : solution.created_by_name === username)) && (
                       <button className="btn btn-danger btn-sm btn-icon" onClick={deleteSolution} title="Delete solution">
                         <Trash2 size={12} />
                       </button>
                     )}
-                    {(!solution || isAdmin || solution.created_by_name === username) && (
+                    {(!solution || isAdmin || (solution?.user_id ? solution.user_id === userId : solution?.created_by_name === username)) && (
                       <button className="btn btn-ghost btn-sm" onClick={() => setEditingSolution(true)} id="edit-solution-btn">
                         <Pencil size={12} /> {solution ? 'Edit' : 'Add Solution'}
                       </button>
