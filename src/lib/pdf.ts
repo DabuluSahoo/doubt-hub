@@ -40,7 +40,7 @@ export async function generateSubjectPDF(subjectTitle: string, questions: any[])
   // 2. Preload all images in parallel
   await preloadImages(allImagePaths);
 
-  const doc = new jsPDF();
+  const doc = new jsPDF({ compress: true });
   let y = 20;
   const pageWidth = doc.internal.pageSize.getWidth();
   const pageHeight = doc.internal.pageSize.getHeight();
@@ -72,7 +72,7 @@ export async function generateGlobalPDF(data: { title: string, questions: any[] 
   // 2. Preload all images in parallel
   await preloadImages(allImagePaths);
 
-  const doc = new jsPDF();
+  const doc = new jsPDF({ compress: true });
   let y = 20;
   const pageWidth = doc.internal.pageSize.getWidth();
   const pageHeight = doc.internal.pageSize.getHeight();
@@ -190,43 +190,38 @@ function addCachedImageToPDF(doc: jsPDF, path: string, y: number, margin: number
   const bottomMargin = 15;
   const availableSpace = pageHeight - y - bottomMargin;
 
-  // Adaptive logic:
-  // 1. If it fits, draw it.
-  // 2. If it doesn't fit:
-  //    a. If we have > 30% of page left, scale it down to fit.
-  //    b. Else, move to next page.
-  
+  // Convert to JPEG with quality control for size reduction
+  const canvas = document.createElement('canvas');
+  canvas.width = img.width;
+  canvas.height = img.height;
+  const ctx = canvas.getContext('2d')!;
+  ctx.drawImage(img, 0, 0);
+  const jpegData = canvas.toDataURL('image/jpeg', 0.6); // 60% quality is a good balance
+
+  const draw = (curY: number, h: number, w: number) => {
+    const xOffset = margin + (contentWidth - w) / 2;
+    doc.addImage(jpegData, 'JPEG', xOffset, curY, w, h, undefined, 'FAST');
+    return curY + h + 10;
+  };
+
   if (drawHeight > availableSpace) {
     if (availableSpace > pageHeight * 0.35) {
-      // Scale down to fit available space
       drawHeight = availableSpace;
       drawWidth = drawHeight * ratio;
-      // If it became wider than content area (unlikely with ratio), cap it
-      if (drawWidth > contentWidth) {
-        drawWidth = contentWidth;
-        drawHeight = drawWidth / ratio;
-      }
-      const xOffset = margin + (contentWidth - drawWidth) / 2;
-      doc.addImage(img, 'WEBP', xOffset, y, drawWidth, drawHeight);
-      return y + drawHeight + 10;
+      if (drawWidth > contentWidth) { drawWidth = contentWidth; drawHeight = drawWidth / ratio; }
+      return draw(y, drawHeight, drawWidth);
     } else {
-      // Move to next page
       doc.addPage();
       y = 20;
-      // Re-evaluate for full page
       drawWidth = contentWidth;
       drawHeight = drawWidth / ratio;
       if (drawHeight > pageHeight - 40) {
         drawHeight = pageHeight - 40;
         drawWidth = drawHeight * ratio;
       }
-      const xOffset = margin + (contentWidth - drawWidth) / 2;
-      doc.addImage(img, 'WEBP', xOffset, y, drawWidth, drawHeight);
-      return y + drawHeight + 10;
+      return draw(y, drawHeight, drawWidth);
     }
   }
 
-  const xOffset = margin + (contentWidth - drawWidth) / 2;
-  doc.addImage(img, 'WEBP', xOffset, y, drawWidth, drawHeight);
-  return y + drawHeight + 10;
+  return draw(y, drawHeight, drawWidth);
 }
