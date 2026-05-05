@@ -1,6 +1,45 @@
 import { jsPDF } from 'jspdf';
 
+// Cache for loaded images to avoid re-loading
+const imageCache = new Map<string, HTMLImageElement>();
+
+async function preloadImages(paths: string[]) {
+  const promises = paths.map(async (path) => {
+    if (imageCache.has(path)) return;
+    const url = `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/doubt-images/${path}`;
+    try {
+      const img = await loadImage(url);
+      imageCache.set(path, img);
+    } catch (e) {
+      console.error('Failed to preload image:', url);
+    }
+  });
+  await Promise.all(promises);
+}
+
+function loadImage(url: string): Promise<HTMLImageElement> {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.crossOrigin = 'anonymous';
+    img.onload = () => resolve(img);
+    img.onerror = reject;
+    img.src = url;
+  });
+}
+
 export async function generateSubjectPDF(subjectTitle: string, questions: any[]) {
+  // 1. Collect all image paths
+  const allImagePaths: string[] = [];
+  questions.forEach(q => {
+    (q.question_images || []).forEach((img: any) => allImagePaths.push(img.storage_path));
+    (q.solutions || []).forEach((sol: any) => {
+      (sol.solution_images || []).forEach((img: any) => allImagePaths.push(img.storage_path));
+    });
+  });
+
+  // 2. Preload all images in parallel
+  await preloadImages(allImagePaths);
+
   const doc = new jsPDF();
   let y = 20;
   const pageWidth = doc.internal.pageSize.getWidth();
@@ -19,6 +58,20 @@ export async function generateSubjectPDF(subjectTitle: string, questions: any[])
 }
 
 export async function generateGlobalPDF(data: { title: string, questions: any[] }[]) {
+  // 1. Collect all image paths
+  const allImagePaths: string[] = [];
+  data.forEach(sub => {
+    sub.questions.forEach(q => {
+      (q.question_images || []).forEach((img: any) => allImagePaths.push(img.storage_path));
+      (q.solutions || []).forEach((sol: any) => {
+        (sol.solution_images || []).forEach((img: any) => allImagePaths.push(img.storage_path));
+      });
+    });
+  });
+
+  // 2. Preload all images in parallel
+  await preloadImages(allImagePaths);
+
   const doc = new jsPDF();
   let y = 20;
   const pageWidth = doc.internal.pageSize.getWidth();
@@ -79,7 +132,7 @@ async function addQuestionsToDoc(doc: jsPDF, questions: any[], startY: number, m
 
     const qImgs = (q.question_images || []).sort((a: any, b: any) => a.page_order - b.page_order);
     for (const img of qImgs) {
-      y = await addImageToPDF(doc, img.storage_path, y, margin, contentWidth, pageHeight);
+      y = addCachedImageToPDF(doc, img.storage_path, y, margin, contentWidth, pageHeight);
     }
 
     // Solutions
@@ -103,7 +156,7 @@ async function addQuestionsToDoc(doc: jsPDF, questions: any[], startY: number, m
 
       const solImgs = (sol.solution_images || []).sort((a: any, b: any) => a.page_order - b.page_order);
       for (const img of solImgs) {
-        y = await addImageToPDF(doc, img.storage_path, y, margin, contentWidth, pageHeight);
+        y = addCachedImageToPDF(doc, img.storage_path, y, margin, contentWidth, pageHeight);
       }
     }
     y += 10;
@@ -111,34 +164,19 @@ async function addQuestionsToDoc(doc: jsPDF, questions: any[], startY: number, m
   return y;
 }
 
-async function addImageToPDF(doc: jsPDF, path: string, y: number, margin: number, contentWidth: number, pageHeight: number) {
-  const url = `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/doubt-images/${path}`;
-  
-  try {
-    const img = await loadImage(url);
-    const imgProps = doc.getImageProperties(img);
-    const ratio = imgProps.width / imgProps.height;
-    const displayHeight = contentWidth / ratio;
+function addCachedImageToPDF(doc: jsPDF, path: string, y: number, margin: number, contentWidth: number, pageHeight: number) {
+  const img = imageCache.get(path);
+  if (!img) return y;
 
-    if (y + displayHeight > pageHeight - 20) {
-      doc.addPage();
-      y = 20;
-    }
+  const imgProps = doc.getImageProperties(img);
+  const ratio = imgProps.width / imgProps.height;
+  const displayHeight = contentWidth / ratio;
 
-    doc.addImage(img, 'WEBP', margin, y, contentWidth, displayHeight);
-    return y + displayHeight + 10;
-  } catch (e) {
-    console.error('Failed to load image for PDF:', url);
-    return y;
+  if (y + displayHeight > pageHeight - 20) {
+    doc.addPage();
+    y = 20;
   }
-}
 
-function loadImage(url: string): Promise<HTMLImageElement> {
-  return new Promise((resolve, reject) => {
-    const img = new Image();
-    img.crossOrigin = 'anonymous';
-    img.onload = () => resolve(img);
-    img.onerror = reject;
-    img.src = url;
-  });
+  doc.addImage(img, 'WEBP', margin, y, contentWidth, displayHeight);
+  return y + displayHeight + 10;
 }

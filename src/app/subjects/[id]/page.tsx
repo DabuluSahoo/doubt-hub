@@ -37,7 +37,7 @@ export default function SubjectPage({ params }: Props) {
     setLoading(true);
     const [subRes, qRes] = await Promise.all([
       supabase.from('subjects').select('*').eq('id', id).single(),
-      supabase.from('questions').select(`*, question_images(*), solutions(id)`).eq('subject_id', id).order('created_at', { ascending: false }),
+      supabase.from('questions').select(`*, question_images(*), solutions(*, solution_images(*))`).eq('subject_id', id).order('created_at', { ascending: false }),
     ]);
     if (subRes.error) { toast('Subject not found', 'error'); router.push('/'); return; }
     setSubject(subRes.data);
