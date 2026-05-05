@@ -64,7 +64,7 @@ export default function Navbar() {
         <div className="container navbar-inner">
           <Link href="/" className="logo">
             <div className="logo-icon">📚</div>
-            DoubtHub
+            <span>DoubtHub</span>
           </Link>
 
           <div className="nav-right">
