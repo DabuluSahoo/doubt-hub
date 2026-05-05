@@ -2,20 +2,18 @@
 import Link from 'next/link';
 import { useState } from 'react';
 import { useUser } from './Providers';
-import { User, Pencil, Check, Shield, ShieldCheck, LogOut } from 'lucide-react';
-import { verifyAdminPassword } from '@/app/actions';
+import { User, Pencil, Check, Shield, ShieldCheck, LogOut, UserPlus, LogIn, X } from 'lucide-react';
+import { verifyAdminPassword, registerUser, loginUser } from '@/app/actions';
 
 export default function Navbar() {
-  const { username, setUsername, isAdmin, setIsAdmin } = useUser();
-  const [editing, setEditing] = useState(false);
-  const [draft, setDraft] = useState(username);
-  const [loggingIn, setLoggingIn] = useState(false);
-
-  const save = () => {
-    const trimmed = draft.trim();
-    if (trimmed) setUsername(trimmed);
-    setEditing(false);
-  };
+  const { user, setUser, isAdmin, setIsAdmin } = useUser();
+  const [showAuthModal, setShowAuthModal] = useState(false);
+  const [isRegister, setIsRegister] = useState(false);
+  const [authUsername, setAuthUsername] = useState('');
+  const [authPassword, setAuthPassword] = useState('');
+  const [authError, setAuthError] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [loggingInAdmin, setLoggingInAdmin] = useState(false);
 
   const handleAdminLogin = async () => {
     if (isAdmin) {
@@ -28,7 +26,7 @@ export default function Navbar() {
     const pw = prompt('Enter Admin Password:');
     if (!pw) return;
 
-    setLoggingIn(true);
+    setLoggingInAdmin(true);
     const success = await verifyAdminPassword(pw);
     if (success) {
       setIsAdmin(true);
@@ -36,62 +34,131 @@ export default function Navbar() {
     } else {
       alert('Invalid password');
     }
-    setLoggingIn(false);
+    setLoggingInAdmin(false);
+  };
+
+  const handleAuth = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setAuthError('');
+    setLoading(true);
+
+    const res = isRegister 
+      ? await registerUser(authUsername, authPassword)
+      : await loginUser(authUsername, authPassword);
+
+    if (res.error) {
+      setAuthError(res.error);
+    } else if (res.user) {
+      setUser(res.user);
+      setShowAuthModal(false);
+      setAuthUsername('');
+      setAuthPassword('');
+    }
+    setLoading(false);
   };
 
   return (
-    <nav className="navbar">
-      <div className="container navbar-inner">
-        <Link href="/" className="logo">
-          <div className="logo-icon">📚</div>
-          DoubtHub
-        </Link>
+    <>
+      <nav className="navbar">
+        <div className="container navbar-inner">
+          <Link href="/" className="logo">
+            <div className="logo-icon">📚</div>
+            DoubtHub
+          </Link>
 
-        <div className="nav-right">
-          {/* Admin Toggle */}
-          <button 
-            className={`username-badge ${isAdmin ? 'admin-active' : ''}`}
-            onClick={handleAdminLogin}
-            disabled={loggingIn}
-            title={isAdmin ? "Logout Admin" : "Admin Login"}
-            style={{ 
-              background: isAdmin ? 'var(--red-dim)' : 'transparent',
-              borderColor: isAdmin ? 'var(--red)' : 'var(--border)',
-              marginRight: 8
-            }}
-          >
-            {isAdmin ? <ShieldCheck size={14} color="var(--red)" /> : <Shield size={14} />}
-            <span style={{ color: isAdmin ? 'var(--red)' : 'inherit' }}>
-              {loggingIn ? 'Checking...' : (isAdmin ? 'Admin' : 'Admin')}
-            </span>
-            {isAdmin && <LogOut size={12} style={{ marginLeft: 4 }} />}
-          </button>
-
-          {editing ? (
-            <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-              <input
-                className="form-input"
-                style={{ padding: '7px 12px', width: 160, fontSize: '0.875rem' }}
-                value={draft}
-                onChange={(e) => setDraft(e.target.value)}
-                onKeyDown={(e) => e.key === 'Enter' && save()}
-                autoFocus
-                maxLength={32}
-              />
-              <button className="btn btn-primary btn-sm btn-icon" onClick={save}>
-                <Check size={15} />
-              </button>
-            </div>
-          ) : (
-            <button className="username-badge" onClick={() => { setDraft(username); setEditing(true); }}>
-              <div className="username-dot" />
-              <User size={14} />
-              <span>{username}</span>
-              <Pencil size={12} style={{ opacity: 0.5 }} />
+          <div className="nav-right">
+            {/* Admin Toggle */}
+            <button 
+              className={`username-badge ${isAdmin ? 'admin-active' : ''}`}
+              onClick={handleAdminLogin}
+              disabled={loggingInAdmin}
+              title={isAdmin ? "Logout Admin" : "Admin Login"}
+              style={{ 
+                background: isAdmin ? 'var(--red-dim)' : 'transparent',
+                borderColor: isAdmin ? 'var(--red)' : 'var(--border)',
+                marginRight: 8
+              }}
+            >
+              {isAdmin ? <ShieldCheck size={14} color="var(--red)" /> : <Shield size={14} />}
+              <span style={{ color: isAdmin ? 'var(--red)' : 'inherit' }}>
+                {isAdmin ? 'Admin' : 'Admin'}
+              </span>
             </button>
-          )}
+
+            {user ? (
+              <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
+                <div className="username-badge" style={{ cursor: 'default' }}>
+                  <div className="username-dot" />
+                  <User size={14} />
+                  <span>{user.username}</span>
+                </div>
+                <button 
+                  className="btn btn-ghost btn-sm btn-icon" 
+                  onClick={() => { setUser(null); setIsAdmin(false); }}
+                  title="Logout"
+                >
+                  <LogOut size={14} />
+                </button>
+              </div>
+            ) : (
+              <button className="btn btn-primary btn-sm" onClick={() => setShowAuthModal(true)}>
+                <LogIn size={14} /> Login
+              </button>
+            )}
+          </div>
         </div>
-      </div>
-    </nav>
+      </nav>
+
+      {/* Auth Modal */}
+      {showAuthModal && (
+        <div className="modal-overlay" onClick={() => setShowAuthModal(false)}>
+          <div className="modal-content" onClick={e => e.stopPropagation()} style={{ maxWidth: 400 }}>
+            <div className="modal-header">
+              <h2 className="modal-title">{isRegister ? 'Create Account' : 'Welcome Back'}</h2>
+              <button className="modal-close" onClick={() => setShowAuthModal(false)}><X size={20} /></button>
+            </div>
+            <form onSubmit={handleAuth} style={{ display: 'flex', flexDirection: 'column', gap: 16, marginTop: 16 }}>
+              {authError && (
+                <div style={{ color: 'var(--red)', background: 'var(--red-dim)', padding: '8px 12px', borderRadius: 8, fontSize: '0.875rem' }}>
+                  {authError}
+                </div>
+              )}
+              <div className="form-group">
+                <label className="form-label">Username</label>
+                <input 
+                  className="form-input" 
+                  required 
+                  value={authUsername} 
+                  onChange={e => setAuthUsername(e.target.value)}
+                  placeholder="Your unique name"
+                />
+              </div>
+              <div className="form-group">
+                <label className="form-label">Password</label>
+                <input 
+                  className="form-input" 
+                  type="password" 
+                  required 
+                  value={authPassword} 
+                  onChange={e => setAuthPassword(e.target.value)}
+                  placeholder="Min 6 characters"
+                />
+              </div>
+              <button className="btn btn-primary w-full" type="submit" disabled={loading}>
+                {loading ? 'Processing...' : (isRegister ? 'Register' : 'Login')}
+              </button>
+              <button 
+                type="button"
+                className="btn btn-ghost w-full" 
+                onClick={() => { setIsRegister(!isRegister); setAuthError(''); }}
+                style={{ fontSize: '0.875rem' }}
+              >
+                {isRegister ? 'Already have an account? Login' : 'Need an account? Register'}
+              </button>
+            </form>
+          </div>
+        </div>
+      )}
+    </>
   );
 }

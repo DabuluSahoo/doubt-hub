@@ -33,51 +33,57 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
 }
 
 /* ─── Username Context ─────────────────────────── */
+type User = {
+  id: string;
+  username: string;
+};
+
 type UserCtx = { 
-  username: string; 
-  setUsername: (n: string) => void;
+  user: User | null;
+  setUser: (u: User | null) => void;
   isAdmin: boolean;
   setIsAdmin: (val: boolean) => void;
-  userId: string;
 };
+
 const UserContext = createContext<UserCtx>({ 
-  username: 'Anonymous', 
-  setUsername: () => {},
+  user: null,
+  setUser: () => {},
   isAdmin: false,
   setIsAdmin: () => {},
-  userId: ''
 });
+
 export const useUser = () => useContext(UserContext);
 
 export function UserProvider({ children }: { children: React.ReactNode }) {
-  const [username, setUsernameState] = useState('Anonymous');
+  const [user, setUserState] = useState<User | null>(null);
   const [isAdmin, setIsAdminState] = useState(false);
-  const [userId, setUserId] = useState('');
   const [ready, setReady] = useState(false);
 
   useEffect(() => {
-    // Load username
-    const saved = localStorage.getItem('dh_username');
-    if (saved) setUsernameState(saved);
+    // Load user
+    const savedUser = localStorage.getItem('dh_user');
+    if (savedUser) {
+      try {
+        setUserState(JSON.parse(savedUser));
+      } catch (e) {
+        localStorage.removeItem('dh_user');
+      }
+    }
     
     // Load admin status
     const savedAdmin = localStorage.getItem('dh_is_admin');
     if (savedAdmin === 'true') setIsAdminState(true);
 
-    // Load or Generate unique userId
-    let savedId = localStorage.getItem('dh_user_id');
-    if (!savedId) {
-      savedId = Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
-      localStorage.setItem('dh_user_id', savedId);
-    }
-    setUserId(savedId);
-    
     setReady(true);
   }, []);
 
-  const setUsername = (n: string) => {
-    setUsernameState(n);
-    localStorage.setItem('dh_username', n);
+  const setUser = (u: User | null) => {
+    setUserState(u);
+    if (u) {
+      localStorage.setItem('dh_user', JSON.stringify(u));
+    } else {
+      localStorage.removeItem('dh_user');
+    }
   };
 
   const setIsAdmin = (val: boolean) => {
@@ -87,7 +93,7 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
 
   if (!ready) return null;
   return (
-    <UserContext.Provider value={{ username, setUsername, isAdmin, setIsAdmin, userId }}>
+    <UserContext.Provider value={{ user, setUser, isAdmin, setIsAdmin }}>
       {children}
     </UserContext.Provider>
   );

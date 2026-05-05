@@ -6,6 +6,14 @@
 -- Enable UUID extension
 create extension if not exists "pgcrypto";
 
+-- ─── Users ──────────────────────────────────────────────
+create table users (
+  id            uuid primary key default gen_random_uuid(),
+  username      text not null unique,
+  password_hash text not null,
+  created_at    timestamptz default now()
+);
+
 -- ─── Subjects ─────────────────────────────────────────────
 create table subjects (
   id            uuid primary key default gen_random_uuid(),
@@ -25,7 +33,8 @@ create table questions (
   status          text not null default 'unsolved'
                     check (status in ('unsolved', 'in_progress', 'solved')),
   uploaded_by_name text not null default 'Anonymous',
-  user_id         text,
+  user_id         text, -- old hidden ID
+  author_id       uuid references users(id) on delete set null, -- new Auth ID
   created_at      timestamptz default now(),
   updated_at      timestamptz default now()
 );
@@ -45,7 +54,8 @@ create table solutions (
   question_id       uuid not null references questions(id) on delete cascade,
   text_content      text,
   created_by_name   text not null default 'Anonymous',
-  user_id           text,
+  user_id           text, -- old hidden ID
+  author_id         uuid references users(id) on delete set null, -- new Auth ID
   updated_by_name   text,
   created_at        timestamptz default now(),
   updated_at        timestamptz default now()

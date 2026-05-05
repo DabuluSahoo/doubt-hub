@@ -25,7 +25,7 @@ function getImageUrl(path: string) {
 
 export default function QuestionPage({ params }: Props) {
   const { id } = use(params);
-  const { username, isAdmin, userId } = useUser();
+  const { user, isAdmin } = useUser();
   const { toast } = useToast();
   const router = useRouter();
 
@@ -121,7 +121,7 @@ export default function QuestionPage({ params }: Props) {
         // Update existing
         await supabase.from('solutions').update({
           text_content: solutionText.trim() || null,
-          updated_by_name: username,
+          updated_by_name: user?.username || 'Anonymous',
           updated_at: new Date().toISOString(),
         }).eq('id', solId);
       } else {
@@ -129,8 +129,8 @@ export default function QuestionPage({ params }: Props) {
         const { data: newSol, error } = await supabase.from('solutions').insert({
           question_id: id,
           text_content: solutionText.trim() || null,
-          created_by_name: username,
-          user_id: userId,
+          created_by_name: user?.username || 'Anonymous',
+          author_id: user?.id || null,
         }).select().single();
         if (error) throw error;
         solId = newSol.id;
@@ -309,12 +309,12 @@ export default function QuestionPage({ params }: Props) {
                   </>
                 ) : (
                   <div style={{ display: 'flex', gap: 6 }}>
-                    {solution && (isAdmin || (solution.user_id ? solution.user_id === userId : solution.created_by_name === username)) && (
+                    {solution && (isAdmin || (user && ((solution as any).author_id === user.id || (!(solution as any).author_id && solution.created_by_name === user.username)))) && (
                       <button className="btn btn-danger btn-sm btn-icon" onClick={deleteSolution} title="Delete solution">
                         <Trash2 size={12} />
                       </button>
                     )}
-                    {(!solution || isAdmin || (solution?.user_id ? solution.user_id === userId : solution?.created_by_name === username)) && (
+                    {(!solution || isAdmin || (user && ((solution as any).author_id === user.id || (!(solution as any).author_id && (solution as any).created_by_name === user.username)))) && (
                       <button className="btn btn-ghost btn-sm" onClick={() => setEditingSolution(true)} id="edit-solution-btn">
                         <Pencil size={12} /> {solution ? 'Edit' : 'Add Solution'}
                       </button>
