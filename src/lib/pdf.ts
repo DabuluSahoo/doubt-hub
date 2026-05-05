@@ -3,9 +3,20 @@ import { jsPDF } from 'jspdf';
 // Cache for loaded images to avoid re-loading
 const imageCache = new Map<string, HTMLImageElement>();
 
-async function preloadImages(paths: string[]) {
+async function preloadImages(paths: string[], onProgress?: (pct: number) => void) {
+  let loaded = 0;
+  const total = paths.length;
+  if (total === 0) {
+    if (onProgress) onProgress(100);
+    return;
+  }
+
   const promises = paths.map(async (path) => {
-    if (imageCache.has(path)) return;
+    if (imageCache.has(path)) {
+      loaded++;
+      if (onProgress) onProgress(Math.round((loaded / total) * 100));
+      return;
+    }
     const url = `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/doubt-images/${path}`;
     try {
       const img = await loadImage(url);
@@ -13,6 +24,8 @@ async function preloadImages(paths: string[]) {
     } catch (e) {
       console.error('Failed to preload image:', url);
     }
+    loaded++;
+    if (onProgress) onProgress(Math.round((loaded / total) * 100));
   });
   await Promise.all(promises);
 }
@@ -27,7 +40,7 @@ function loadImage(url: string): Promise<HTMLImageElement> {
   });
 }
 
-export async function generateSubjectPDF(subjectTitle: string, questions: any[]) {
+export async function generateSubjectPDF(subjectTitle: string, questions: any[], onProgress?: (pct: number) => void) {
   // 1. Collect all image paths
   const allImagePaths: string[] = [];
   questions.forEach(q => {
@@ -38,7 +51,7 @@ export async function generateSubjectPDF(subjectTitle: string, questions: any[])
   });
 
   // 2. Preload all images in parallel
-  await preloadImages(allImagePaths);
+  await preloadImages(allImagePaths, onProgress);
 
   const doc = new jsPDF({ compress: true });
   let y = 20;
@@ -57,7 +70,7 @@ export async function generateSubjectPDF(subjectTitle: string, questions: any[])
   doc.save(`${subjectTitle.replace(/\s+/g, '_')}_DoubtHub.pdf`);
 }
 
-export async function generateGlobalPDF(data: { title: string, questions: any[] }[]) {
+export async function generateGlobalPDF(data: { title: string, questions: any[] }[], onProgress?: (pct: number) => void) {
   // 1. Collect all image paths
   const allImagePaths: string[] = [];
   data.forEach(sub => {
@@ -70,7 +83,7 @@ export async function generateGlobalPDF(data: { title: string, questions: any[] 
   });
 
   // 2. Preload all images in parallel
-  await preloadImages(allImagePaths);
+  await preloadImages(allImagePaths, onProgress);
 
   const doc = new jsPDF({ compress: true });
   let y = 20;

@@ -21,11 +21,13 @@ export default function HomePage() {
   const [form, setForm] = useState({ name: '', description: '', emoji: EMOJIS[0] });
   const [saving, setSaving] = useState(false);
   const [downloadingAll, setDownloadingAll] = useState(false);
+  const [dlProgress, setDlProgress] = useState(0);
 
   const handleGlobalDownload = async () => {
     setDownloadingAll(true);
+    setDlProgress(0);
     try {
-      toast('Preparing full backup PDF... this may take a moment.');
+      toast('Fetching all subjects and questions...');
       const { data: allData, error } = await supabase
         .from('subjects')
         .select(`
@@ -44,12 +46,14 @@ export default function HomePage() {
         questions: (s.questions || []).sort((a: any, b: any) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime())
       }));
 
-      await generateGlobalPDF(formatted);
+      toast('Downloading images...');
+      await generateGlobalPDF(formatted, (p) => setDlProgress(p));
       toast('Full backup ready! ✓');
     } catch (e: any) {
       toast(e.message || 'Download failed', 'error');
     }
     setDownloadingAll(false);
+    setDlProgress(0);
   };
 
   const fetchSubjects = useCallback(async () => {
@@ -149,10 +153,16 @@ export default function HomePage() {
               className="btn btn-ghost" 
               onClick={handleGlobalDownload} 
               disabled={downloadingAll}
-              style={{ gap: 8, height: 48, whiteSpace: 'nowrap' }}
+              style={{ gap: 8, height: 48, whiteSpace: 'nowrap', minWidth: 140 }}
             >
-              {downloadingAll ? <div className="spinner" style={{ width: 14, height: 14 }} /> : <Download size={16} />}
-              <span>Full Backup</span>
+              {downloadingAll ? (
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <div className="spinner" style={{ width: 14, height: 14 }} />
+                  <span>{dlProgress}%</span>
+                </div>
+              ) : (
+                <><Download size={16} /> <span>Full Backup</span></>
+              )}
             </button>
           )}
         </div>

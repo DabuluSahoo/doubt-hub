@@ -32,6 +32,21 @@ export default function SubjectPage({ params }: Props) {
   const [files, setFiles] = useState<PreviewFile[]>([]);
   const [form, setForm] = useState({ title: '', description: '' });
   const [saving, setSaving] = useState(false);
+  const [downloading, setDownloading] = useState(false);
+  const [dlProgress, setDlProgress] = useState(0);
+
+  const handleDownload = async () => {
+    setDownloading(true);
+    setDlProgress(0);
+    try {
+      await generateSubjectPDF(subject?.name || 'Subject', filtered, (p) => setDlProgress(p));
+      toast('PDF Downloaded ✓');
+    } catch (e: any) {
+      toast(e.message || 'Download failed', 'error');
+    }
+    setDownloading(false);
+    setDlProgress(0);
+  };
 
   const fetchData = useCallback(async () => {
     setLoading(true);
@@ -165,10 +180,15 @@ export default function SubjectPage({ params }: Props) {
               {isAdmin && (
                 <button 
                   className="btn btn-ghost btn-sm" 
-                  onClick={() => generateSubjectPDF(subject?.name || 'Subject', filtered)}
-                  style={{ gap: 6, padding: '8px 12px' }}
+                  onClick={handleDownload}
+                  disabled={downloading}
+                  style={{ gap: 6, padding: '8px 12px', minWidth: 80 }}
                 >
-                  <Download size={14} /> PDF
+                  {downloading ? (
+                    <span style={{ fontSize: '0.7rem' }}>{dlProgress}%</span>
+                  ) : (
+                    <><Download size={14} /> PDF</>
+                  )}
                 </button>
               )}
               
