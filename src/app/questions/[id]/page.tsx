@@ -315,9 +315,15 @@ export default function QuestionPage({ params }: Props) {
                       </button>
                     )}
                     {(!solution || isAdmin || (user && ((solution as any).author_id === user.id || (!(solution as any).author_id && (solution as any).created_by_name === user.username)))) && (
-                      <button className="btn btn-ghost btn-sm" onClick={() => setEditingSolution(true)} id="edit-solution-btn">
-                        <Pencil size={12} /> {solution ? 'Edit' : 'Add Solution'}
-                      </button>
+                      user ? (
+                        <button className="btn btn-ghost btn-sm" onClick={() => setEditingSolution(true)} id="edit-solution-btn">
+                          <Pencil size={12} /> {solution ? 'Edit' : 'Add Solution'}
+                        </button>
+                      ) : !solution && (
+                        <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontStyle: 'italic' }}>
+                          Login to contribute a solution
+                        </div>
+                      )
                     )}
                   </div>
                 )}

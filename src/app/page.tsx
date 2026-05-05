@@ -90,9 +90,15 @@ export default function HomePage() {
             <h1 className="page-title">Study Subjects</h1>
             <p className="page-subtitle">Organize doubts by subject. Anyone can view and contribute.</p>
           </div>
-          <button className="btn btn-primary" onClick={openCreate} id="add-subject-btn">
-            <Plus size={16} /> New Subject
-          </button>
+          {user ? (
+            <button className="btn btn-primary" onClick={openCreate} id="add-subject-btn">
+              <Plus size={16} /> New Subject
+            </button>
+          ) : (
+            <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontStyle: 'italic', opacity: 0.7 }}>
+              Login to add subjects
+            </div>
+          )}
         </div>
 
         {/* Search */}

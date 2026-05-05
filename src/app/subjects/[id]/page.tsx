@@ -151,9 +151,15 @@ export default function SubjectPage({ params }: Props) {
               <div className="progress-bar"><div className="progress-fill" style={{ width: `${pct}%` }} /></div>
             </div>
           </div>
-          <button className="btn btn-primary" id="add-question-btn" onClick={() => setShowModal(true)}>
-            <Plus size={16} /> Upload Doubt
-          </button>
+          {user ? (
+            <button className="btn btn-primary" id="add-question-btn" onClick={() => setShowModal(true)}>
+              <Plus size={16} /> Upload Doubt
+            </button>
+          ) : (
+            <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontStyle: 'italic', opacity: 0.7 }}>
+              Login to upload doubts
+            </div>
+          )}
         </div>
 
         {/* Filters */}
