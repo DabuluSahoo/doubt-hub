@@ -225,7 +225,7 @@ export default function QuestionPage({ params }: Props) {
                 <div className="card" style={{ padding: 20, borderColor: 'var(--accent)' }}>
                   <div className="solution-panel">
                     <textarea className="rich-editor" placeholder="Write your explanation here..." value={solutionText} onChange={(e) => setSolutionText(e.target.value)} />
-                    <UploadZone files={solutionFiles} setFiles={setSolutionFiles} hint="Add solution diagrams/images" />
+                    <UploadZone onFilesChange={setSolutionFiles} label="solution images" />
                     <div className="modal-footer" style={{ marginTop: 16 }}>
                       <button className="btn btn-ghost" onClick={() => setEditingSolutionId(null)}>Cancel</button>
                       <button className="btn btn-primary" onClick={saveSolution} disabled={savingSolution}>{savingSolution ? 'Saving...' : 'Post Solution'}</button>
@@ -258,7 +258,7 @@ export default function QuestionPage({ params }: Props) {
                       {isEditing ? (
                         <div className="solution-panel">
                           <textarea className="rich-editor" value={solutionText} onChange={(e) => setSolutionText(e.target.value)} />
-                          <UploadZone files={solutionFiles} setFiles={setSolutionFiles} />
+                          <UploadZone onFilesChange={setSolutionFiles} />
                           <div className="modal-footer">
                             <button className="btn btn-ghost" onClick={() => setEditingSolutionId(null)}>Cancel</button>
                             <button className="btn btn-primary" onClick={saveSolution} disabled={savingSolution}>{savingSolution ? 'Saving...' : 'Update Solution'}</button>

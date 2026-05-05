@@ -46,14 +46,14 @@ export default function Navbar() {
     setRegMessage('');
     setLoading(true);
 
-    const res = isRegister 
+    const res: any = isRegister 
       ? await registerUser(authUsername, authPassword)
       : await loginUser(authUsername, authPassword);
 
     if (res.error) {
       setAuthError(res.error);
-    } else if ((res as any).success) {
-      setRegMessage((res as any).message);
+    } else if (res.success) {
+      setRegMessage(res.message);
       setAuthUsername('');
       setAuthPassword('');
     } else if (res.user) {
