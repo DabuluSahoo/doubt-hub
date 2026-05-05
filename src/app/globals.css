@@ -605,11 +605,12 @@ input[type="file"] { display: none; }
 
 @media (max-width: 768px) {
   .sticky-controls {
-    top: 60px;
-    padding: 12px 0;
-    margin-bottom: 20px;
+    top: 112px; /* Adjusted for taller mobile navbar */
+    padding: 10px 0;
+    margin-bottom: 16px;
     background: var(--bg-primary);
     border-bottom: 1px solid var(--border);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.2);
   }
   
   .btn-floating {
