@@ -2,17 +2,41 @@
 import Link from 'next/link';
 import { useState } from 'react';
 import { useUser } from './Providers';
-import { User, Pencil, Check } from 'lucide-react';
+import { User, Pencil, Check, Shield, ShieldCheck, LogOut } from 'lucide-react';
+import { verifyAdminPassword } from '@/app/actions';
 
 export default function Navbar() {
-  const { username, setUsername } = useUser();
+  const { username, setUsername, isAdmin, setIsAdmin } = useUser();
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(username);
+  const [loggingIn, setLoggingIn] = useState(false);
 
   const save = () => {
     const trimmed = draft.trim();
     if (trimmed) setUsername(trimmed);
     setEditing(false);
+  };
+
+  const handleAdminLogin = async () => {
+    if (isAdmin) {
+      if (confirm('Logout from Admin mode?')) {
+        setIsAdmin(false);
+      }
+      return;
+    }
+
+    const pw = prompt('Enter Admin Password:');
+    if (!pw) return;
+
+    setLoggingIn(true);
+    const success = await verifyAdminPassword(pw);
+    if (success) {
+      setIsAdmin(true);
+      alert('Admin access granted!');
+    } else {
+      alert('Invalid password');
+    }
+    setLoggingIn(false);
   };
 
   return (
@@ -24,11 +48,30 @@ export default function Navbar() {
         </Link>
 
         <div className="nav-right">
+          {/* Admin Toggle */}
+          <button 
+            className={`username-badge ${isAdmin ? 'admin-active' : ''}`}
+            onClick={handleAdminLogin}
+            disabled={loggingIn}
+            title={isAdmin ? "Logout Admin" : "Admin Login"}
+            style={{ 
+              background: isAdmin ? 'var(--red-dim)' : 'transparent',
+              borderColor: isAdmin ? 'var(--red)' : 'var(--border)',
+              marginRight: 8
+            }}
+          >
+            {isAdmin ? <ShieldCheck size={14} color="var(--red)" /> : <Shield size={14} />}
+            <span style={{ color: isAdmin ? 'var(--red)' : 'inherit' }}>
+              {loggingIn ? 'Checking...' : (isAdmin ? 'Admin' : 'Admin')}
+            </span>
+            {isAdmin && <LogOut size={12} style={{ marginLeft: 4 }} />}
+          </button>
+
           {editing ? (
             <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
               <input
                 className="form-input"
-                style={{ padding: '7px 12px', width: 180, fontSize: '0.875rem' }}
+                style={{ padding: '7px 12px', width: 160, fontSize: '0.875rem' }}
                 value={draft}
                 onChange={(e) => setDraft(e.target.value)}
                 onKeyDown={(e) => e.key === 'Enter' && save()}

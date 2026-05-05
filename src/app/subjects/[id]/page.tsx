@@ -18,7 +18,7 @@ const STATUS_CONFIG = {
 
 export default function SubjectPage({ params }: Props) {
   const { id } = use(params);
-  const { username } = useUser();
+  const { username, isAdmin } = useUser();
   const { toast } = useToast();
   const router = useRouter();
 
@@ -212,10 +212,12 @@ export default function SubjectPage({ params }: Props) {
                         {(q as any).solutions?.length > 0 && (
                           <span className="image-count-badge" style={{ background: 'var(--green-dim)', color: 'var(--green)' }}>✓ sol</span>
                         )}
-                        <button className="btn btn-danger btn-sm btn-icon" style={{ width: 26, height: 26 }}
-                          onClick={(e) => deleteQuestion(q, e)} title="Delete question">
-                          <Trash2 size={11} />
-                        </button>
+                        {isAdmin && (
+                          <button className="btn btn-danger btn-sm btn-icon" style={{ width: 26, height: 26 }}
+                            onClick={(e) => deleteQuestion(q, e)} title="Delete question">
+                            <Trash2 size={11} />
+                          </button>
+                        )}
                       </div>
                     </div>
                   </div>

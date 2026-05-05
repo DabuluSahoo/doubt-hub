@@ -25,7 +25,7 @@ function getImageUrl(path: string) {
 
 export default function QuestionPage({ params }: Props) {
   const { id } = use(params);
-  const { username } = useUser();
+  const { username, isAdmin } = useUser();
   const { toast } = useToast();
   const router = useRouter();
 
@@ -180,6 +180,28 @@ export default function QuestionPage({ params }: Props) {
     setUpdatingStatus(false);
   };
 
+  const deleteSolution = async () => {
+    if (!solution) return;
+    if (!confirm('Are you sure you want to delete this solution?')) return;
+
+    try {
+      // 1. Delete all solution images from storage
+      const { data: images } = await supabase.from('solution_images').select('storage_path').eq('solution_id', solution.id);
+      if (images && images.length > 0) {
+        const paths = images.map(img => img.storage_path);
+        await supabase.storage.from('doubt-images').remove(paths);
+      }
+
+      // 2. Delete the solution (on delete cascade handles solution_images)
+      await supabase.from('solutions').delete().eq('id', solution.id);
+
+      toast('Solution deleted ✓');
+      fetchAll();
+    } catch (e: any) {
+      toast(e.message || 'Failed to delete solution', 'error');
+    }
+  };
+
   if (loading) return <div className="page"><div className="container"><div className="loading-state"><div className="spinner" /></div></div></div>;
   if (!question) return <div className="page"><div className="container"><div className="empty-state"><div className="empty-title">Question not found</div></div></div></div>;
 
@@ -285,9 +307,18 @@ export default function QuestionPage({ params }: Props) {
                     </button>
                   </>
                 ) : (
-                  <button className="btn btn-ghost btn-sm" onClick={() => setEditingSolution(true)} id="edit-solution-btn">
-                    <Pencil size={12} /> {solution ? 'Edit' : 'Add Solution'}
-                  </button>
+                  <div style={{ display: 'flex', gap: 6 }}>
+                    {solution && (isAdmin || solution.created_by_name === username) && (
+                      <button className="btn btn-danger btn-sm btn-icon" onClick={deleteSolution} title="Delete solution">
+                        <Trash2 size={12} />
+                      </button>
+                    )}
+                    {(!solution || isAdmin || solution.created_by_name === username) && (
+                      <button className="btn btn-ghost btn-sm" onClick={() => setEditingSolution(true)} id="edit-solution-btn">
+                        <Pencil size={12} /> {solution ? 'Edit' : 'Add Solution'}
+                      </button>
+                    )}
+                  </div>
                 )}
               </div>
             </div>

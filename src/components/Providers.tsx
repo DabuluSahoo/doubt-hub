@@ -33,17 +33,32 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
 }
 
 /* ─── Username Context ─────────────────────────── */
-type UserCtx = { username: string; setUsername: (n: string) => void };
-const UserContext = createContext<UserCtx>({ username: 'Anonymous', setUsername: () => {} });
+type UserCtx = { 
+  username: string; 
+  setUsername: (n: string) => void;
+  isAdmin: boolean;
+  setIsAdmin: (val: boolean) => void;
+};
+const UserContext = createContext<UserCtx>({ 
+  username: 'Anonymous', 
+  setUsername: () => {},
+  isAdmin: false,
+  setIsAdmin: () => {}
+});
 export const useUser = () => useContext(UserContext);
 
 export function UserProvider({ children }: { children: React.ReactNode }) {
   const [username, setUsernameState] = useState('Anonymous');
+  const [isAdmin, setIsAdminState] = useState(false);
   const [ready, setReady] = useState(false);
 
   useEffect(() => {
     const saved = localStorage.getItem('dh_username');
     if (saved) setUsernameState(saved);
+    
+    const savedAdmin = localStorage.getItem('dh_is_admin');
+    if (savedAdmin === 'true') setIsAdminState(true);
+    
     setReady(true);
   }, []);
 
@@ -52,6 +67,15 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
     localStorage.setItem('dh_username', n);
   };
 
+  const setIsAdmin = (val: boolean) => {
+    setIsAdminState(val);
+    localStorage.setItem('dh_is_admin', val ? 'true' : 'false');
+  };
+
   if (!ready) return null;
-  return <UserContext.Provider value={{ username, setUsername }}>{children}</UserContext.Provider>;
+  return (
+    <UserContext.Provider value={{ username, setUsername, isAdmin, setIsAdmin }}>
+      {children}
+    </UserContext.Provider>
+  );
 }
