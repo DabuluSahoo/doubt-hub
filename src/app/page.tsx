@@ -3,12 +3,13 @@ import { useEffect, useState, useCallback } from 'react';
 import { supabase, Subject } from '@/lib/supabase';
 import { useUser, useToast } from '@/components/Providers';
 import { useRouter } from 'next/navigation';
-import { Plus, BookOpen, Trash2, Pencil, Search, X, FolderOpen } from 'lucide-react';
+import { Plus, BookOpen, Trash2, Pencil, Search, X, FolderOpen, Download } from 'lucide-react';
+import { generateGlobalPDF } from '@/lib/pdf';
 
 const EMOJIS = ['📘', '📗', '📕', '📙', '🧮', '🔬', '🌍', '💻', '📐', '🎨', '🧬', '📖', '⚗️', '🏛️', '🎵'];
 
 export default function HomePage() {
-  const { user } = useUser();
+  const { user, isAdmin } = useUser();
   const { toast } = useToast();
   const router = useRouter();
 
@@ -19,6 +20,37 @@ export default function HomePage() {
   const [editTarget, setEditTarget] = useState<Subject | null>(null);
   const [form, setForm] = useState({ name: '', description: '', emoji: EMOJIS[0] });
   const [saving, setSaving] = useState(false);
+  const [downloadingAll, setDownloadingAll] = useState(false);
+
+  const handleGlobalDownload = async () => {
+    setDownloadingAll(true);
+    try {
+      toast('Preparing full backup PDF... this may take a moment.');
+      const { data: allData, error } = await supabase
+        .from('subjects')
+        .select(`
+          name,
+          questions(
+            *,
+            question_images(*),
+            solutions(*, solution_images(*))
+          )
+        `);
+      
+      if (error) throw error;
+      
+      const formatted = (allData || []).map(s => ({
+        title: s.name,
+        questions: (s.questions || []).sort((a: any, b: any) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime())
+      }));
+
+      await generateGlobalPDF(formatted);
+      toast('Full backup ready! ✓');
+    } catch (e: any) {
+      toast(e.message || 'Download failed', 'error');
+    }
+    setDownloadingAll(false);
+  };
 
   const fetchSubjects = useCallback(async () => {
     setLoading(true);
@@ -101,16 +133,28 @@ export default function HomePage() {
           )}
         </div>
 
-        {/* Search */}
-        <div className="search-wrap" style={{ marginBottom: 28 }}>
-          <Search size={16} className="search-icon" />
-          <input
-            className="search-input"
-            placeholder="Search subjects..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            id="subject-search"
-          />
+        <div style={{ display: 'flex', gap: 12, marginBottom: 28, alignItems: 'center' }}>
+          <div className="search-wrap" style={{ flex: 1, marginBottom: 0 }}>
+            <Search size={16} className="search-icon" />
+            <input
+              className="search-input"
+              placeholder="Search subjects..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              id="subject-search"
+            />
+          </div>
+          {isAdmin && (
+            <button 
+              className="btn btn-ghost" 
+              onClick={handleGlobalDownload} 
+              disabled={downloadingAll}
+              style={{ gap: 8, height: 48, whiteSpace: 'nowrap' }}
+            >
+              {downloadingAll ? <div className="spinner" style={{ width: 14, height: 14 }} /> : <Download size={16} />}
+              <span>Full Backup</span>
+            </button>
+          )}
         </div>
 
         {/* Grid */}

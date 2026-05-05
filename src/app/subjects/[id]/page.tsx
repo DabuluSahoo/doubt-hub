@@ -6,7 +6,8 @@ import { compressImage } from '@/lib/compress';
 import UploadZone, { PreviewFile } from '@/components/UploadZone';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { Plus, Search, ChevronRight, Image as ImageIcon, CheckCircle2, Clock, HelpCircle, X, Trash2 } from 'lucide-react';
+import { Search, Plus, ChevronRight, Image as ImageIcon, CheckCircle2, Clock, HelpCircle, X, Trash2, Download } from 'lucide-react';
+import { generateSubjectPDF } from '@/lib/pdf';
 
 type Props = { params: Promise<{ id: string }> };
 
@@ -159,23 +160,32 @@ export default function SubjectPage({ params }: Props) {
               <Search size={16} className="search-icon" />
               <input className="search-input" placeholder="Search questions..." value={search} onChange={(e) => setSearch(e.target.value)} />
             </div>
-            
-            <div className="filter-dropdown-wrap">
+
+            <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+              {isAdmin && (
+                <button 
+                  className="btn btn-ghost btn-sm" 
+                  onClick={() => generateSubjectPDF(subject?.name || 'Subject', filtered)}
+                  style={{ gap: 6, padding: '8px 12px' }}
+                >
+                  <Download size={14} /> PDF
+                </button>
+              )}
+              
               <select 
-                className="form-input filter-select" 
-                value={filter} 
+                className="btn btn-ghost btn-sm"
+                value={filter}
                 onChange={(e) => setFilter(e.target.value)}
+                style={{ appearance: 'none', paddingRight: 32, cursor: 'pointer' }}
               >
-                <option value="all">All Doubts</option>
-                <option value="unsolved">⭕ Unsolved</option>
-                <option value="in_progress">⏳ In Progress</option>
-                <option value="solved">✅ Solved</option>
+                <option value="all">All Status</option>
+                <option value="unsolved">Unsolved</option>
+                <option value="in_progress">In Progress</option>
+                <option value="solved">Solved</option>
               </select>
             </div>
           </div>
         </div>
-
-        {/* Questions Grid */}
 
         {/* Questions Grid */}
         {loading ? (
