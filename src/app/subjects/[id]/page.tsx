@@ -128,57 +128,54 @@ export default function SubjectPage({ params }: Props) {
   return (
     <div className="page">
       <div className="container">
-        {/* Breadcrumb */}
-        <div className="breadcrumb">
-          <Link href="/">Home</Link>
-          <ChevronRight size={14} />
-          <span>{subject?.name || '...'}</span>
-        </div>
+        {/* Sticky Header Section */}
+        <div className="sticky-controls">
+          <div className="breadcrumb">
+            <Link href="/">Home</Link>
+            <ChevronRight size={14} />
+            <span>{subject?.name || '...'}</span>
+          </div>
 
-        {/* Header */}
-        <div className="page-header">
-          <div>
-            <h1 className="page-title" style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-              <span style={{ fontSize: '2rem' }}>{(subject as any)?.emoji || '📘'}</span>
-              {subject?.name || 'Loading...'}
-            </h1>
-            {subject?.description && <p className="page-subtitle">{subject.description}</p>}
-            <div style={{ marginTop: 12, maxWidth: 320 }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: 6 }}>
-                <span>{solved} / {questions.length} solved</span>
-                <span>{pct}%</span>
+          <div className="page-header" style={{ marginBottom: 16 }}>
+            <div>
+              <h1 className="page-title" style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                <span style={{ fontSize: '1.5rem' }}>{(subject as any)?.emoji || '📘'}</span>
+                {subject?.name || 'Loading...'}
+              </h1>
+              <div className="progress-bar" style={{ width: 140, marginTop: 8 }}>
+                <div className="progress-fill" style={{ width: `${pct}%` }} />
               </div>
-              <div className="progress-bar"><div className="progress-fill" style={{ width: `${pct}%` }} /></div>
+            </div>
+            
+            {user && (
+              <button className="btn btn-primary btn-floating" id="add-question-btn" onClick={() => setShowModal(true)}>
+                <Plus size={18} /> <span>Upload Doubt</span>
+              </button>
+            )}
+          </div>
+
+          <div className="filter-bar">
+            <div className="search-wrap">
+              <Search size={16} className="search-icon" />
+              <input className="search-input" placeholder="Search questions..." value={search} onChange={(e) => setSearch(e.target.value)} />
+            </div>
+            
+            <div className="filter-dropdown-wrap">
+              <select 
+                className="form-input filter-select" 
+                value={filter} 
+                onChange={(e) => setFilter(e.target.value)}
+              >
+                <option value="all">All Doubts</option>
+                <option value="unsolved">⭕ Unsolved</option>
+                <option value="in_progress">⏳ In Progress</option>
+                <option value="solved">✅ Solved</option>
+              </select>
             </div>
           </div>
-          {user ? (
-            <button className="btn btn-primary" id="add-question-btn" onClick={() => setShowModal(true)}>
-              <Plus size={16} /> Upload Doubt
-            </button>
-          ) : (
-            <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontStyle: 'italic', opacity: 0.7 }}>
-              Login to upload doubts
-            </div>
-          )}
         </div>
 
-        {/* Filters */}
-        <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginBottom: 24, alignItems: 'center' }}>
-          <div className="search-wrap" style={{ maxWidth: 320 }}>
-            <Search size={16} className="search-icon" />
-            <input className="search-input" placeholder="Search questions..." value={search} onChange={(e) => setSearch(e.target.value)} />
-          </div>
-          {['all', 'unsolved', 'in_progress', 'solved'].map((s) => (
-            <button
-              key={s}
-              className={`btn btn-ghost btn-sm ${filter === s ? 'btn-primary' : ''}`}
-              onClick={() => setFilter(s)}
-              style={filter === s ? {} : {}}
-            >
-              {s === 'all' ? 'All' : s === 'in_progress' ? 'In Progress' : s.charAt(0).toUpperCase() + s.slice(1)}
-            </button>
-          ))}
-        </div>
+        {/* Questions Grid */}
 
         {/* Questions Grid */}
         {loading ? (
