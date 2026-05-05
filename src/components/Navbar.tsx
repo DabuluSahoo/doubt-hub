@@ -38,9 +38,12 @@ export default function Navbar() {
     setLoggingInAdmin(false);
   };
 
+  const [regMessage, setRegMessage] = useState('');
+
   const handleAuth = async (e: React.FormEvent) => {
     e.preventDefault();
     setAuthError('');
+    setRegMessage('');
     setLoading(true);
 
     const res = isRegister 
@@ -49,6 +52,10 @@ export default function Navbar() {
 
     if (res.error) {
       setAuthError(res.error);
+    } else if ((res as any).success) {
+      setRegMessage((res as any).message);
+      setAuthUsername('');
+      setAuthPassword('');
     } else if (res.user) {
       setUser(res.user);
       setShowAuthModal(false);
@@ -124,6 +131,11 @@ export default function Navbar() {
               <button className="modal-close" onClick={() => setShowAuthModal(false)}><X size={20} /></button>
             </div>
             <form onSubmit={handleAuth} style={{ display: 'flex', flexDirection: 'column', gap: 16, marginTop: 16 }}>
+              {regMessage && (
+                <div style={{ color: 'var(--green)', background: 'var(--green-dim)', padding: '12px', borderRadius: 8, fontSize: '0.875rem', textAlign: 'center', fontWeight: 500 }}>
+                  {regMessage}
+                </div>
+              )}
               {authError && (
                 <div style={{ color: 'var(--red)', background: 'var(--red-dim)', padding: '8px 12px', borderRadius: 8, fontSize: '0.875rem' }}>
                   {authError}
@@ -156,7 +168,7 @@ export default function Navbar() {
               <button 
                 type="button"
                 className="btn btn-ghost w-full" 
-                onClick={() => { setIsRegister(!isRegister); setAuthError(''); }}
+                onClick={() => { setIsRegister(!isRegister); setAuthError(''); setRegMessage(''); }}
                 style={{ fontSize: '0.875rem' }}
               >
                 {isRegister ? 'Already have an account? Login' : 'Need an account? Register'}

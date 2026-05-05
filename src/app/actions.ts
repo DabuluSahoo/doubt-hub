@@ -34,7 +34,7 @@ export async function registerUser(username: string, password: string) {
 
     if (error) throw error;
 
-    return { user: { id: newUser.id, username: newUser.username } };
+    return { success: true, message: 'Registration successful! Your account is now pending admin approval.' };
   } catch (e: any) {
     return { error: e.message || 'Registration failed' };
   }
