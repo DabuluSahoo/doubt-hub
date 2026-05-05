@@ -211,33 +211,34 @@ export default function QuestionPage({ params }: Props) {
   return (
     <div className="page">
       <div className="container">
-        {/* Header Navigation */}
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
-          <div className="breadcrumb" style={{ marginBottom: 0 }}>
-            <Link href="/">Home</Link>
-            <ChevronRight size={14} />
-            <Link href={`/subjects/${question.subject_id}`}>Subject</Link>
-            <ChevronRight size={14} />
-            <span>{question.title}</span>
-          </div>
+        <div className="sticky-controls">
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <div className="breadcrumb" style={{ marginBottom: 0 }}>
+              <Link href="/">Home</Link>
+              <ChevronRight size={14} />
+              <Link href={`/subjects/${question.subject_id}`}>Subject</Link>
+              <ChevronRight size={14} />
+              <span>Detail</span>
+            </div>
 
-          <div style={{ display: 'flex', gap: 8 }}>
-            <Link
-              href={prevQ ? `/questions/${prevQ}` : '#'}
-              className={`btn btn-sm ${prevQ ? 'btn-ghost' : ''}`}
-              style={{ padding: '6px 12px', opacity: prevQ ? 1 : 0.3, pointerEvents: prevQ ? 'auto' : 'none', background: prevQ ? 'var(--bg-card)' : 'transparent', border: '1px solid var(--border)' }}
-              title="Previous Question"
-            >
-              ← Prev
-            </Link>
-            <Link
-              href={nextQ ? `/questions/${nextQ}` : '#'}
-              className={`btn btn-sm ${nextQ ? 'btn-ghost' : ''}`}
-              style={{ padding: '6px 12px', opacity: nextQ ? 1 : 0.3, pointerEvents: nextQ ? 'auto' : 'none', background: nextQ ? 'var(--bg-card)' : 'transparent', border: '1px solid var(--border)' }}
-              title="Next Question"
-            >
-              Next →
-            </Link>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <Link
+                href={prevQ ? `/questions/${prevQ}` : '#'}
+                className={`btn btn-sm ${prevQ ? 'btn-ghost' : 'btn-disabled'}`}
+                style={{ width: 'auto', padding: '6px 12px', opacity: prevQ ? 1 : 0.3, pointerEvents: prevQ ? 'auto' : 'none' }}
+                title="Previous Question"
+              >
+                ← Prev
+              </Link>
+              <Link
+                href={nextQ ? `/questions/${nextQ}` : '#'}
+                className={`btn btn-sm ${nextQ ? 'btn-ghost' : 'btn-disabled'}`}
+                style={{ width: 'auto', padding: '6px 12px', opacity: nextQ ? 1 : 0.3, pointerEvents: nextQ ? 'auto' : 'none' }}
+                title="Next Question"
+              >
+                Next →
+              </Link>
+            </div>
           </div>
         </div>
 

@@ -608,21 +608,26 @@ input[type="file"] { display: none; }
     top: 60px;
     padding: 12px 0;
     margin-bottom: 20px;
-    background: rgba(10, 10, 15, 0.95);
-    backdrop-filter: blur(10px);
+    background: var(--bg-primary);
+    border-bottom: 1px solid var(--border);
   }
   
   .btn-floating {
-    position: fixed;
-    bottom: 24px;
-    right: 24px;
+    position: fixed !important;
+    bottom: 32px !important;
+    right: 24px !important;
+    left: auto !important;
+    top: auto !important;
     width: auto !important;
-    padding: 0 24px;
-    height: 56px;
-    border-radius: 28px;
-    z-index: 1000;
-    box-shadow: 0 8px 32px var(--accent-glow);
-    font-size: 1rem;
+    padding: 0 20px;
+    height: 50px;
+    border-radius: 25px;
+    z-index: 9999;
+    box-shadow: 0 12px 32px rgba(0,0,0,0.5), 0 0 20px var(--accent-glow);
+    font-size: 0.875rem;
+    display: flex !important;
+    align-items: center;
+    justify-content: center;
   }
   .btn-floating span { display: inline-block; }
   
