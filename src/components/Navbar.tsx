@@ -6,7 +6,7 @@ import { User, Pencil, Check, Shield, ShieldCheck, LogOut, UserPlus, LogIn, X } 
 import { verifyAdminPassword, registerUser, loginUser } from '@/app/actions';
 
 export default function Navbar() {
-  const { user, setUser, isAdmin, setIsAdmin } = useUser();
+  const { user, setUser, isAdmin, setIsAdmin, adminPassword, setAdminPassword } = useUser();
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [isRegister, setIsRegister] = useState(false);
   const [authUsername, setAuthUsername] = useState('');
@@ -30,6 +30,7 @@ export default function Navbar() {
     const success = await verifyAdminPassword(pw);
     if (success) {
       setIsAdmin(true);
+      setAdminPassword(pw);
       alert('Admin access granted!');
     } else {
       alert('Invalid password');
@@ -67,6 +68,11 @@ export default function Navbar() {
           </Link>
 
           <div className="nav-right">
+            {isAdmin && (
+              <Link href="/admin" className="btn btn-ghost btn-sm" style={{ marginRight: 8 }}>
+                <Shield size={14} /> Users
+              </Link>
+            )}
             {/* Admin Toggle */}
             <button 
               className={`username-badge ${isAdmin ? 'admin-active' : ''}`}

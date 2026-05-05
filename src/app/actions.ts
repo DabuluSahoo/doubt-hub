@@ -53,7 +53,12 @@ export async function loginUser(username: string, password: string) {
       return { error: 'Invalid username or password' };
     }
 
-    // 2. Check password
+    // 2. Check approval
+    if (!user.is_approved) {
+      return { error: 'Your account is pending admin approval' };
+    }
+
+    // 3. Check password
     const match = await bcrypt.compare(password, user.password_hash);
     if (!match) {
       return { error: 'Invalid username or password' };
@@ -63,4 +68,38 @@ export async function loginUser(username: string, password: string) {
   } catch (e: any) {
     return { error: e.message || 'Login failed' };
   }
+}
+
+export async function getPendingUsers(adminPw: string) {
+  if (!(await verifyAdminPassword(adminPw))) return { error: 'Unauthorized' };
+  
+  const { data, error } = await supabase
+    .from('users')
+    .select('id, username, created_at')
+    .eq('is_approved', false)
+    .order('created_at', { ascending: false });
+    
+  return { users: data || [], error: error?.message };
+}
+
+export async function approveUser(adminPw: string, userId: string) {
+  if (!(await verifyAdminPassword(adminPw))) return { error: 'Unauthorized' };
+  
+  const { error } = await supabase
+    .from('users')
+    .update({ is_approved: true })
+    .eq('id', userId);
+    
+  return { success: !error, error: error?.message };
+}
+
+export async function deleteUser(adminPw: string, userId: string) {
+  if (!(await verifyAdminPassword(adminPw))) return { error: 'Unauthorized' };
+  
+  const { error } = await supabase
+    .from('users')
+    .delete()
+    .eq('id', userId);
+    
+  return { success: !error, error: error?.message };
 }

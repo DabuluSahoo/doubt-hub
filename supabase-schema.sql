@@ -11,6 +11,7 @@ create table users (
   id            uuid primary key default gen_random_uuid(),
   username      text not null unique,
   password_hash text not null,
+  is_approved   boolean not null default false,
   created_at    timestamptz default now()
 );
 

@@ -43,6 +43,8 @@ type UserCtx = {
   setUser: (u: User | null) => void;
   isAdmin: boolean;
   setIsAdmin: (val: boolean) => void;
+  adminPassword?: string;
+  setAdminPassword: (pw: string) => void;
 };
 
 const UserContext = createContext<UserCtx>({ 
@@ -50,6 +52,7 @@ const UserContext = createContext<UserCtx>({
   setUser: () => {},
   isAdmin: false,
   setIsAdmin: () => {},
+  setAdminPassword: () => {},
 });
 
 export const useUser = () => useContext(UserContext);
@@ -57,6 +60,7 @@ export const useUser = () => useContext(UserContext);
 export function UserProvider({ children }: { children: React.ReactNode }) {
   const [user, setUserState] = useState<User | null>(null);
   const [isAdmin, setIsAdminState] = useState(false);
+  const [adminPassword, setAdminPasswordState] = useState('');
   const [ready, setReady] = useState(false);
 
   useEffect(() => {
@@ -72,7 +76,11 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
     
     // Load admin status
     const savedAdmin = localStorage.getItem('dh_is_admin');
-    if (savedAdmin === 'true') setIsAdminState(true);
+    if (savedAdmin === 'true') {
+      setIsAdminState(true);
+      const savedPw = localStorage.getItem('dh_admin_pw');
+      if (savedPw) setAdminPasswordState(savedPw);
+    }
 
     setReady(true);
   }, []);
@@ -89,11 +97,20 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
   const setIsAdmin = (val: boolean) => {
     setIsAdminState(val);
     localStorage.setItem('dh_is_admin', val ? 'true' : 'false');
+    if (!val) {
+      setAdminPasswordState('');
+      localStorage.removeItem('dh_admin_pw');
+    }
+  };
+
+  const setAdminPassword = (pw: string) => {
+    setAdminPasswordState(pw);
+    localStorage.setItem('dh_admin_pw', pw);
   };
 
   if (!ready) return null;
   return (
-    <UserContext.Provider value={{ user, setUser, isAdmin, setIsAdmin }}>
+    <UserContext.Provider value={{ user, setUser, isAdmin, setIsAdmin, adminPassword, setAdminPassword }}>
       {children}
     </UserContext.Provider>
   );
