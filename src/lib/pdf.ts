@@ -112,7 +112,8 @@ async function addQuestionsToDoc(doc: jsPDF, questions: any[], startY: number, m
   for (let i = 0; i < questions.length; i++) {
     const q = questions[i];
     
-    if (y > pageHeight - 30) {
+    // Page break check for title
+    if (y > pageHeight - 25) {
       doc.addPage();
       y = 20;
     }
@@ -126,6 +127,11 @@ async function addQuestionsToDoc(doc: jsPDF, questions: any[], startY: number, m
     if (q.description) {
       doc.setFontSize(10);
       const lines = doc.splitTextToSize(q.description, contentWidth);
+      // Check if text needs page break
+      if (y + (lines.length * 5) > pageHeight - 15) {
+        doc.addPage();
+        y = 20;
+      }
       doc.text(lines, margin, y);
       y += (lines.length * 5) + 5;
     }
@@ -139,7 +145,11 @@ async function addQuestionsToDoc(doc: jsPDF, questions: any[], startY: number, m
     const sols = q.solutions || [];
     for (let j = 0; j < sols.length; j++) {
       const sol = sols[j];
-      if (y > pageHeight - 20) { doc.addPage(); y = 20; }
+      
+      if (y > pageHeight - 20) {
+        doc.addPage();
+        y = 20;
+      }
       
       doc.setFontSize(12);
       doc.setTextColor(34, 197, 94);
@@ -150,6 +160,10 @@ async function addQuestionsToDoc(doc: jsPDF, questions: any[], startY: number, m
       if (sol.text_content) {
         doc.setFontSize(10);
         const lines = doc.splitTextToSize(sol.text_content, contentWidth);
+        if (y + (lines.length * 5) > pageHeight - 15) {
+          doc.addPage();
+          y = 20;
+        }
         doc.text(lines, margin, y);
         y += (lines.length * 5) + 5;
       }
@@ -170,13 +184,49 @@ function addCachedImageToPDF(doc: jsPDF, path: string, y: number, margin: number
 
   const imgProps = doc.getImageProperties(img);
   const ratio = imgProps.width / imgProps.height;
-  const displayHeight = contentWidth / ratio;
+  
+  let drawWidth = contentWidth;
+  let drawHeight = drawWidth / ratio;
+  const bottomMargin = 15;
+  const availableSpace = pageHeight - y - bottomMargin;
 
-  if (y + displayHeight > pageHeight - 20) {
-    doc.addPage();
-    y = 20;
+  // Adaptive logic:
+  // 1. If it fits, draw it.
+  // 2. If it doesn't fit:
+  //    a. If we have > 30% of page left, scale it down to fit.
+  //    b. Else, move to next page.
+  
+  if (drawHeight > availableSpace) {
+    if (availableSpace > pageHeight * 0.35) {
+      // Scale down to fit available space
+      drawHeight = availableSpace;
+      drawWidth = drawHeight * ratio;
+      // If it became wider than content area (unlikely with ratio), cap it
+      if (drawWidth > contentWidth) {
+        drawWidth = contentWidth;
+        drawHeight = drawWidth / ratio;
+      }
+      const xOffset = margin + (contentWidth - drawWidth) / 2;
+      doc.addImage(img, 'WEBP', xOffset, y, drawWidth, drawHeight);
+      return y + drawHeight + 10;
+    } else {
+      // Move to next page
+      doc.addPage();
+      y = 20;
+      // Re-evaluate for full page
+      drawWidth = contentWidth;
+      drawHeight = drawWidth / ratio;
+      if (drawHeight > pageHeight - 40) {
+        drawHeight = pageHeight - 40;
+        drawWidth = drawHeight * ratio;
+      }
+      const xOffset = margin + (contentWidth - drawWidth) / 2;
+      doc.addImage(img, 'WEBP', xOffset, y, drawWidth, drawHeight);
+      return y + drawHeight + 10;
+    }
   }
 
-  doc.addImage(img, 'WEBP', margin, y, contentWidth, displayHeight);
-  return y + displayHeight + 10;
+  const xOffset = margin + (contentWidth - drawWidth) / 2;
+  doc.addImage(img, 'WEBP', xOffset, y, drawWidth, drawHeight);
+  return y + drawHeight + 10;
 }
