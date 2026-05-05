@@ -8,7 +8,7 @@ import { Plus, BookOpen, Trash2, Pencil, Search, X, FolderOpen } from 'lucide-re
 const EMOJIS = ['📘', '📗', '📕', '📙', '🧮', '🔬', '🌍', '💻', '📐', '🎨', '🧬', '📖', '⚗️', '🏛️', '🎵'];
 
 export default function HomePage() {
-  const { username } = useUser();
+  const { user } = useUser();
   const { toast } = useToast();
   const router = useRouter();
 
@@ -58,9 +58,10 @@ export default function HomePage() {
       else { toast('Subject updated ✓'); setShowModal(false); fetchSubjects(); }
     } else {
       const { error } = await supabase.from('subjects').insert({
-        name: form.name.trim(), description: form.description.trim() || null,
-        emoji: form.emoji, created_by_name: username,
-      });
+        name: form.name.trim(),
+        description: form.description.trim() || null,
+        emoji: form.emoji, created_by_name: user?.username || 'Anonymous',
+      }).select().single();
       if (error) { console.error(error); toast(error.message, 'error'); }
       else { toast('Subject created ✓'); setShowModal(false); fetchSubjects(); }
     }
