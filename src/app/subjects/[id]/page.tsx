@@ -27,9 +27,13 @@ export default function SubjectPage({ params }: Props) {
   const [subject, setSubject] = useState<Subject | null>(null);
   const [questions, setQuestions] = useState<Question[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [hasMore, setHasMore] = useState(true);
+  const [page, setPage] = useState(0);
   const [search, setSearch] = useState('');
   const [filter, setFilter] = useState<string>('all');
   const [sortBy, setSortBy] = useState<'newest' | 'oldest'>('newest');
+  
   const [showModal, setShowModal] = useState(false);
   const [files, setFiles] = useState<PreviewFile[]>([]);
   const [form, setForm] = useState({ title: '', description: '' });
@@ -37,11 +41,82 @@ export default function SubjectPage({ params }: Props) {
   const [downloading, setDownloading] = useState(false);
   const [dlProgress, setDlProgress] = useState(0);
 
+  const PAGE_SIZE = 12;
+
+  const fetchQuestions = useCallback(async (isInitial = false) => {
+    if (isInitial) {
+      setLoading(true);
+      setPage(0);
+    } else {
+      setLoadingMore(true);
+    }
+
+    const currentPage = isInitial ? 0 : page + 1;
+    const from = currentPage * PAGE_SIZE;
+    const to = from + PAGE_SIZE - 1;
+
+    let query = supabase
+      .from('questions')
+      .select(`*, question_images(*), solutions(*, solution_images(*))`)
+      .eq('subject_id', id)
+      .order('created_at', { ascending: sortBy === 'oldest' });
+
+    if (filter !== 'all') {
+      query = query.eq('status', filter);
+    }
+    if (search.trim()) {
+      query = query.ilike('title', `%${search.trim()}%`);
+    }
+
+    const { data, error } = await query.range(from, to);
+
+    if (error) {
+      toast('Failed to load questions', 'error');
+    } else {
+      if (isInitial) {
+        setQuestions(data || []);
+      } else {
+        setQuestions(prev => [...prev, ...(data || [])]);
+      }
+      setHasMore(data?.length === PAGE_SIZE);
+      if (!isInitial) setPage(currentPage);
+    }
+
+    setLoading(false);
+    setLoadingMore(false);
+  }, [id, filter, sortBy, search, page, toast]);
+
+  // Initial fetch for subject info
+  useEffect(() => {
+    supabase.from('subjects').select('*').eq('id', id).single().then(({ data }) => {
+      if (data) setSubject(data);
+    });
+  }, [id]);
+
+  // Fetch questions when filter/sort/search changes
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      fetchQuestions(true);
+    }, 400); // Debounce search
+    return () => clearTimeout(timer);
+  }, [filter, sortBy, search]); // Re-fetch on filter/sort/search change
+
   const handleDownload = async () => {
     setDownloading(true);
     setDlProgress(0);
     try {
-      await generateSubjectPDF(subject?.name || 'Subject', filtered, (p) => setDlProgress(p));
+      // For download, we still need to fetch ALL currently filtered questions
+      // but we do it separately to not affect the UI list
+      let query = supabase
+        .from('questions')
+        .select(`*, question_images(*), solutions(*, solution_images(*))`)
+        .eq('subject_id', id)
+        .order('created_at', { ascending: sortBy === 'oldest' });
+      if (filter !== 'all') query = query.eq('status', filter);
+      if (search.trim()) query = query.ilike('title', `%${search.trim()}%`);
+      
+      const { data } = await query;
+      await generateSubjectPDF(subject?.name || 'Subject', data || [], (p) => setDlProgress(p));
       toast('PDF Downloaded ✓');
     } catch (e: any) {
       toast(e.message || 'Download failed', 'error');
@@ -49,20 +124,6 @@ export default function SubjectPage({ params }: Props) {
     setDownloading(false);
     setDlProgress(0);
   };
-
-  const fetchData = useCallback(async () => {
-    setLoading(true);
-    const [subRes, qRes] = await Promise.all([
-      supabase.from('subjects').select('*').eq('id', id).single(),
-      supabase.from('questions').select(`*, question_images(*), solutions(*, solution_images(*))`).eq('subject_id', id).order('created_at', { ascending: false }),
-    ]);
-    if (subRes.error) { toast('Subject not found', 'error'); router.push('/'); return; }
-    setSubject(subRes.data);
-    setQuestions(qRes.data || []);
-    setLoading(false);
-  }, [id, toast, router]);
-
-  useEffect(() => { fetchData(); }, [fetchData]);
 
   const uploadQuestion = async () => {
     if (!form.title.trim() && files.length === 0) return;
@@ -78,7 +139,6 @@ export default function SubjectPage({ params }: Props) {
       }).select().single();
       if (qErr) throw qErr;
 
-      // Parallel upload & registration
       await Promise.all(files.map(async (f, i) => {
         const path = `questions/${q.id}/${i}_${Date.now()}.webp`;
         const { error: upErr } = await supabase.storage.from('doubt-images').upload(path, f.file, { contentType: 'image/webp', upsert: false });
@@ -90,7 +150,7 @@ export default function SubjectPage({ params }: Props) {
       setShowModal(false);
       setForm({ title: '', description: '' });
       setFiles([]);
-      fetchData();
+      fetchQuestions(true); // Reset to page 0
     } catch (e: any) {
       toast(e.message || 'Upload failed', 'error');
     }
@@ -101,7 +161,6 @@ export default function SubjectPage({ params }: Props) {
     e.stopPropagation();
     if (!confirm('Delete this question and its solution?')) return;
     
-    // Robustly remove all images from storage folders directly
     const { data: qFiles } = await supabase.storage.from('doubt-images').list(`questions/${q.id}`);
     if (qFiles && qFiles.length > 0) {
       const paths = qFiles.map((f) => `questions/${q.id}/${f.name}`);
@@ -119,7 +178,6 @@ export default function SubjectPage({ params }: Props) {
 
     const { error } = await supabase.from('questions').delete().eq('id', q.id);
     if (error) {
-      console.error(error);
       toast('Failed to delete question', 'error');
     } else {
       setQuestions(prev => prev.filter(item => item.id !== q.id));
@@ -127,29 +185,14 @@ export default function SubjectPage({ params }: Props) {
     }
   };
 
-  const filtered = questions.filter((q) => {
-    const matchSearch = q.title.toLowerCase().includes(search.toLowerCase());
-    const matchFilter = filter === 'all' || q.status === filter;
-    return matchSearch && matchFilter;
-  }).sort((a, b) => {
-    const da = new Date(a.created_at).getTime();
-    const db = new Date(b.created_at).getTime();
-    return sortBy === 'newest' ? db - da : da - db;
-  });
-
-  const getThumb = (q: Question) => {
-    const img = q.images?.[0];
-    if (!img) return null;
-    return `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/doubt-images/${img.storage_path}`;
-  };
-
-  const solved = questions.filter((q) => q.status === 'solved').length;
-  const pct = questions.length ? Math.round((solved / questions.length) * 100) : 0;
+  // We can't calculate exact progress easily with pagination, 
+  // but we can show it based on loaded items or just hide it
+  const solvedCount = questions.filter(q => q.status === 'solved').length;
+  const pct = questions.length ? Math.round((solvedCount / questions.length) * 100) : 0;
 
   return (
     <div className="page">
       <div className="container">
-        {/* Sticky Header Section */}
         <div className="sticky-controls">
           <div className="breadcrumb">
             <Link href="/">Home</Link>
@@ -163,9 +206,11 @@ export default function SubjectPage({ params }: Props) {
                 <span style={{ fontSize: '1.5rem' }}>{(subject as any)?.emoji || '📘'}</span>
                 {subject?.name || 'Loading...'}
               </h1>
-              <div className="progress-bar" style={{ width: 140, marginTop: 8 }}>
-                <div className="progress-fill" style={{ width: `${pct}%` }} />
-              </div>
+              {questions.length > 0 && (
+                <div className="progress-bar" style={{ width: 140, marginTop: 8 }}>
+                  <div className="progress-fill" style={{ width: `${pct}%` }} />
+                </div>
+              )}
             </div>
             
             {user && (
@@ -183,36 +228,17 @@ export default function SubjectPage({ params }: Props) {
 
             <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
               {isAdmin && (
-                <button 
-                  className="btn btn-ghost btn-sm" 
-                  onClick={handleDownload}
-                  disabled={downloading}
-                  style={{ gap: 6, padding: '8px 12px', minWidth: 80 }}
-                >
-                  {downloading ? (
-                    <span style={{ fontSize: '0.7rem' }}>{dlProgress}%</span>
-                  ) : (
-                    <><Download size={14} /> PDF</>
-                  )}
+                <button className="btn btn-ghost btn-sm" onClick={handleDownload} disabled={downloading} style={{ gap: 6, padding: '8px 12px', minWidth: 80 }}>
+                  {downloading ? <span style={{ fontSize: '0.7rem' }}>{dlProgress}%</span> : <><Download size={14} /> PDF</>}
                 </button>
               )}
               
-              <select 
-                className="btn btn-ghost btn-sm"
-                value={sortBy}
-                onChange={(e) => setSortBy(e.target.value as any)}
-                style={{ appearance: 'none', paddingRight: 32, cursor: 'pointer' }}
-              >
+              <select className="btn btn-ghost btn-sm" value={sortBy} onChange={(e) => setSortBy(e.target.value as any)}>
                 <option value="newest">Newest First</option>
                 <option value="oldest">Oldest First</option>
               </select>
 
-              <select 
-                className="btn btn-ghost btn-sm"
-                value={filter}
-                onChange={(e) => setFilter(e.target.value)}
-                style={{ appearance: 'none', paddingRight: 32, cursor: 'pointer' }}
-              >
+              <select className="btn btn-ghost btn-sm" value={filter} onChange={(e) => setFilter(e.target.value)}>
                 <option value="all">All Status</option>
                 <option value="unsolved">Unsolved</option>
                 <option value="in_progress">In Progress</option>
@@ -222,29 +248,35 @@ export default function SubjectPage({ params }: Props) {
           </div>
         </div>
 
-        {/* Questions Grid */}
         {loading ? (
           <div className="loading-state"><div className="spinner" /></div>
-        ) : filtered.length === 0 ? (
+        ) : questions.length === 0 ? (
           <div className="empty-state">
             <div className="empty-icon">🤔</div>
             <div className="empty-title">{search || filter !== 'all' ? 'No matching questions' : 'No doubts uploaded yet'}</div>
-            <div className="empty-desc">
-              {!search && filter === 'all' && 'Be the first to upload a doubt for this subject!'}
-            </div>
           </div>
         ) : (
-          <div className="grid-4">
-            {filtered.map((q) => (
-              <QuestionCard 
-                key={q.id} 
-                question={q} 
-                isAdmin={isAdmin || !!(user && (q as any).author_id === user.id)}
-                onDelete={(e) => deleteQuestion(q, e)}
-                onClick={() => router.push(`/questions/${q.id}`)}
-              />
-            ))}
-          </div>
+          <>
+            <div className="grid-4">
+              {questions.map((q) => (
+                <QuestionCard 
+                  key={q.id} 
+                  question={q} 
+                  isAdmin={isAdmin || !!(user && (q as any).author_id === user.id)}
+                  onDelete={(e) => deleteQuestion(q, e)}
+                  onClick={() => router.push(`/questions/${q.id}`)}
+                />
+              ))}
+            </div>
+            
+            {hasMore && (
+              <div style={{ display: 'flex', justifyContent: 'center', marginTop: 40 }}>
+                <button className="btn btn-ghost" onClick={() => fetchQuestions()} disabled={loadingMore}>
+                  {loadingMore ? 'Loading...' : 'Load More Questions'}
+                </button>
+              </div>
+            )}
+          </>
         )}
       </div>
 
