@@ -224,7 +224,7 @@ export default function SubjectPage({ params }: Props) {
               <QuestionCard 
                 key={q.id} 
                 question={q} 
-                isAdmin={isAdmin || (user && (q as any).author_id === user.id)}
+                isAdmin={isAdmin || !!(user && (q as any).author_id === user.id)}
                 onDelete={(e) => deleteQuestion(q, e)}
                 onClick={() => router.push(`/questions/${q.id}`)}
               />
