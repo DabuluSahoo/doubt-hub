@@ -96,11 +96,15 @@ export default function SubjectPage({ params }: Props) {
 
   // Fetch questions when filter/sort/search changes
   useEffect(() => {
-    const timer = setTimeout(() => {
-      fetchQuestions(true);
-    }, 400); // Debounce search
-    return () => clearTimeout(timer);
-  }, [filter, sortBy, search]); // Re-fetch on filter/sort/search change
+    if (inputSearch === '') {
+      setSearch('');
+    }
+  }, [inputSearch]);
+
+  useEffect(() => {
+    // Re-fetch only when the APPLIED search or filters change
+    fetchQuestions(true);
+  }, [filter, sortBy, search]); 
 
   const handleDownload = async () => {
     setDownloading(true);

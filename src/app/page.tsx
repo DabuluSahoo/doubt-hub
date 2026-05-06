@@ -16,6 +16,7 @@ export default function HomePage() {
 
   const [subjects, setSubjects] = useState<(Subject & { emoji: string })[]>([]);
   const [loading, setLoading] = useState(true);
+  const [inputSearch, setInputSearch] = useState('');
   const [search, setSearch] = useState('');
   const [showModal, setShowModal] = useState(false);
   const [editTarget, setEditTarget] = useState<Subject | null>(null);
@@ -75,6 +76,12 @@ export default function HomePage() {
   }, [toast]);
 
   useEffect(() => { fetchSubjects(); }, [fetchSubjects]);
+
+  useEffect(() => {
+    if (inputSearch === '') {
+      setSearch('');
+    }
+  }, [inputSearch]);
 
   const openCreate = () => { setEditTarget(null); setForm({ name: '', description: '', emoji: EMOJIS[0] }); setShowModal(true); };
   const openEdit = (s: Subject & { emoji: string }, e: React.MouseEvent) => {
@@ -195,13 +202,20 @@ export default function HomePage() {
 
         <div style={{ display: 'flex', gap: 12, marginBottom: 28, alignItems: 'center' }}>
           <div className="search-wrap" style={{ flex: 1, marginBottom: 0 }}>
-            <Search size={16} className="search-icon" />
+            <Search 
+              size={16} 
+              className="search-icon" 
+              style={{ cursor: 'pointer' }}
+              onClick={() => setSearch(inputSearch)}
+            />
             <input
               className="search-input"
-              placeholder="Search subjects..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              id="subject-search"
+              placeholder="Search subjects and press Enter..."
+              value={inputSearch}
+              onChange={(e) => setInputSearch(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') setSearch(inputSearch);
+              }}
             />
           </div>
           {isAdmin && (
