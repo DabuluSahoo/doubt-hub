@@ -104,15 +104,31 @@ export default function HomePage() {
     setSaving(false);
   };
 
-  const handleDelete = async (id: string, e: React.MouseEvent) => {
+  const handleDelete = async (s: Subject, e: React.MouseEvent) => {
     e.stopPropagation();
-    if (!confirm('Delete this subject and all its questions?')) return;
-    const { error } = await supabase.from('subjects').delete().eq('id', id);
-    if (error) toast('Failed to delete', 'error');
-    else {
-      setSubjects(prev => prev.filter(s => s.id !== id));
-      toast('Subject deleted');
+    
+    const pw = prompt('Admin Password required to clear this subject:');
+    if (pw !== 'doubt_hub_admin_2024') {
+      if (pw !== null) toast('Invalid password', 'error');
+      return;
     }
+
+    if (!confirm(`Clear all questions and solutions for "${s.name}"? This cannot be undone.`)) return;
+    
+    setSaving(true);
+    try {
+      // Robustly delete all questions for this subject. 
+      // Storage images will need cleanup too for a perfect fix, 
+      // but the user focused on database deletion here.
+      const { error } = await supabase.from('questions').delete().eq('subject_id', s.id);
+      if (error) throw error;
+      
+      toast(`All doubts cleared from ${s.name} ✓`);
+      fetchSubjects();
+    } catch (e: any) {
+      toast(e.message || 'Failed to clear subject', 'error');
+    }
+    setSaving(false);
   };
 
   const filtered = subjects.filter(
@@ -192,14 +208,16 @@ export default function HomePage() {
                 onClick={() => router.push(`/subjects/${s.id}`)}
                 id={`subject-${s.id}`}
               >
-                <div className="subject-card-actions">
-                  <button className="btn btn-ghost btn-sm btn-icon" onClick={(e) => openEdit(s, e)} title="Edit">
-                    <Pencil size={13} />
-                  </button>
-                  <button className="btn btn-danger btn-sm btn-icon" onClick={(e) => handleDelete(s.id, e)} title="Delete">
-                    <Trash2 size={13} />
-                  </button>
-                </div>
+                {isAdmin && (
+                  <div className="subject-card-actions">
+                    <button className="btn btn-ghost btn-sm btn-icon" onClick={(e) => openEdit(s, e)} title="Edit">
+                      <Pencil size={13} />
+                    </button>
+                    <button className="btn btn-danger btn-sm btn-icon" onClick={(e) => handleDelete(s, e)} title="Clear All">
+                      <Trash2 size={13} />
+                    </button>
+                  </div>
+                )}
                 <div className="subject-card-emoji">{s.emoji}</div>
                 <div className="subject-card-name">{s.name}</div>
                 {s.description && <div className="subject-card-desc">{s.description}</div>}
