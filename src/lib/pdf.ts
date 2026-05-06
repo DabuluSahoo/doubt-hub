@@ -1,9 +1,12 @@
 import { jsPDF } from 'jspdf';
 
-// Cache for loaded images to avoid re-loading
-const imageCache = new Map<string, HTMLImageElement>();
+// Shared image cache
+let imageCache = new Map<string, HTMLImageElement>();
+// Shared canvas to reduce memory churn
+let sharedCanvas: HTMLCanvasElement | null = null;
 
 async function preloadImages(paths: string[], onProgress?: (pct: number) => void) {
+  const CHUNK_SIZE = 5;
   let loaded = 0;
   const total = paths.length;
   if (total === 0) {
@@ -11,23 +14,27 @@ async function preloadImages(paths: string[], onProgress?: (pct: number) => void
     return;
   }
 
-  const promises = paths.map(async (path) => {
-    if (imageCache.has(path)) {
+  for (let i = 0; i < total; i += CHUNK_SIZE) {
+    const chunk = paths.slice(i, i + CHUNK_SIZE);
+    await Promise.all(chunk.map(async (path) => {
+      if (imageCache.has(path)) {
+        loaded++;
+        return;
+      }
+      const url = `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/doubt-images/${path}`;
+      try {
+        const img = await loadImage(url);
+        imageCache.set(path, img);
+      } catch (e) {
+        console.error('Failed to preload image:', url);
+      }
       loaded++;
-      if (onProgress) onProgress(Math.round((loaded / total) * 100));
-      return;
-    }
-    const url = `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/doubt-images/${path}`;
-    try {
-      const img = await loadImage(url);
-      imageCache.set(path, img);
-    } catch (e) {
-      console.error('Failed to preload image:', url);
-    }
-    loaded++;
+    }));
+    
+    // Yield to UI and report progress
+    await new Promise(r => setTimeout(r, 0));
     if (onProgress) onProgress(Math.round((loaded / total) * 100));
-  });
-  await Promise.all(promises);
+  }
 }
 
 function loadImage(url: string): Promise<HTMLImageElement> {
@@ -41,6 +48,9 @@ function loadImage(url: string): Promise<HTMLImageElement> {
 }
 
 export async function generateSubjectPDF(subjectTitle: string, questions: any[], onProgress?: (pct: number) => void) {
+  // Clear cache before starting to free memory
+  imageCache.clear();
+  
   const allImagePaths: string[] = [];
   questions.forEach(q => {
     (q.question_images || []).forEach((img: any) => allImagePaths.push(img.storage_path));
@@ -73,9 +83,14 @@ export async function generateSubjectPDF(subjectTitle: string, questions: any[],
 
   y = await renderQuestionsToDoc(doc, questions, y, margin, contentWidth);
   doc.save(`${subjectTitle.replace(/\s+/g, '_')}_DoubtHub.pdf`);
+  
+  // Clean up
+  imageCache.clear();
 }
 
 export async function generateGlobalPDF(data: { title: string, questions: any[] }[], onProgress?: (pct: number) => void) {
+  imageCache.clear();
+  
   const allImagePaths: string[] = [];
   data.forEach(sub => {
     sub.questions.forEach(q => {
@@ -123,6 +138,7 @@ export async function generateGlobalPDF(data: { title: string, questions: any[] 
   }
 
   doc.save(`DoubtHub_Full_Backup.pdf`);
+  imageCache.clear();
 }
 
 function calculateQuestionsHeight(questions: any[], contentWidth: number): number {
@@ -160,7 +176,9 @@ async function renderQuestionsToDoc(doc: jsPDF, questions: any[], startY: number
   let y = startY;
   for (let i = 0; i < questions.length; i++) {
     const q = questions[i];
-    await new Promise(r => setTimeout(r, 0));
+    
+    // Yield more frequently for stability
+    if (i % 2 === 0) await new Promise(r => setTimeout(r, 0));
 
     doc.setFontSize(14);
     doc.setTextColor(124, 58, 237);
@@ -211,12 +229,15 @@ function addContinuousImage(doc: jsPDF, path: string, y: number, margin: number,
   const ratio = img.width / img.height;
   const h = contentWidth / ratio;
 
-  const canvas = document.createElement('canvas');
-  canvas.width = img.width; canvas.height = img.height;
-  const ctx = canvas.getContext('2d')!;
+  // Use shared canvas to save memory allocation
+  if (!sharedCanvas) sharedCanvas = document.createElement('canvas');
+  sharedCanvas.width = img.width;
+  sharedCanvas.height = img.height;
+  const ctx = sharedCanvas.getContext('2d')!;
   ctx.drawImage(img, 0, 0);
-  const jpegData = canvas.toDataURL('image/jpeg', 0.6);
-
+  
+  const jpegData = sharedCanvas.toDataURL('image/jpeg', 0.6);
   doc.addImage(jpegData, 'JPEG', margin, y, contentWidth, h, undefined, 'FAST');
+  
   return y + h + 10;
 }
