@@ -5,6 +5,7 @@ import { useUser, useToast } from '@/components/Providers';
 import { useRouter } from 'next/navigation';
 import { Plus, BookOpen, Trash2, Pencil, Search, X, FolderOpen, Download } from 'lucide-react';
 import { generateGlobalPDF } from '@/lib/pdf';
+import { verifyAdminPassword } from '@/app/actions';
 
 const EMOJIS = ['📘', '📗', '📕', '📙', '🧮', '🔬', '🌍', '💻', '📐', '🎨', '🧬', '📖', '⚗️', '🏛️', '🎵'];
 
@@ -108,8 +109,13 @@ export default function HomePage() {
     e.stopPropagation();
     
     const pw = prompt('Admin Password required to clear this subject:');
-    if (pw !== 'doubt_hub_admin_2024') {
-      if (pw !== null) toast('Invalid password', 'error');
+    if (!pw) return;
+
+    setSaving(true);
+    const isValid = await verifyAdminPassword(pw);
+    if (!isValid) {
+      toast('Invalid password', 'error');
+      setSaving(false);
       return;
     }
 
