@@ -8,6 +8,7 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { Search, Plus, ChevronRight, Image as ImageIcon, CheckCircle2, Clock, HelpCircle, X, Trash2, Download } from 'lucide-react';
 import { generateSubjectPDF } from '@/lib/pdf';
+import QuestionCard from '@/components/QuestionCard';
 
 type Props = { params: Promise<{ id: string }> };
 
@@ -76,14 +77,13 @@ export default function SubjectPage({ params }: Props) {
       }).select().single();
       if (qErr) throw qErr;
 
-      // Upload images
-      for (let i = 0; i < files.length; i++) {
-        const f = files[i];
+      // Parallel upload & registration
+      await Promise.all(files.map(async (f, i) => {
         const path = `questions/${q.id}/${i}_${Date.now()}.webp`;
         const { error: upErr } = await supabase.storage.from('doubt-images').upload(path, f.file, { contentType: 'image/webp', upsert: false });
         if (upErr) throw upErr;
         await supabase.from('question_images').insert({ question_id: q.id, storage_path: path, page_order: i });
-      }
+      }));
 
       toast('Question uploaded ✓');
       setShowModal(false);
@@ -220,44 +220,15 @@ export default function SubjectPage({ params }: Props) {
           </div>
         ) : (
           <div className="grid-4">
-            {filtered.map((q) => {
-              const thumb = getThumb(q);
-              const imgCount = q.images?.length ?? 0;
-              return (
-                <div key={q.id} className="question-card" id={`question-${q.id}`} onClick={() => router.push(`/questions/${q.id}`)}>
-                  <div className="question-card-thumb">
-                    {thumb
-                      ? <img src={`${thumb}?width=400`} alt={q.title} loading="lazy" />
-                      : <div className="question-card-thumb-placeholder">📷</div>}
-                    <span className={`status-badge ${STATUS_CONFIG[q.status].cls}`}>
-                      {STATUS_CONFIG[q.status].icon} {STATUS_CONFIG[q.status].label}
-                    </span>
-                  </div>
-                  <div className="question-card-body">
-                    <div className="question-card-title">{q.title}</div>
-                    <div className="question-card-meta">
-                      <span style={{ color: 'var(--text-muted)', fontSize: '0.75rem' }}>by {q.uploaded_by_name}</span>
-                      <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-                        {imgCount > 0 && (
-                          <span className="image-count-badge">
-                            <ImageIcon size={10} /> {imgCount}
-                          </span>
-                        )}
-                        {(q as any).solutions?.length > 0 && (
-                          <span className="image-count-badge" style={{ background: 'var(--green-dim)', color: 'var(--green)' }}>✓ sol</span>
-                        )}
-                        {(isAdmin || (user && (q as any).author_id === user.id)) && (
-                          <button className="btn btn-danger btn-sm btn-icon" style={{ width: 26, height: 26 }}
-                            onClick={(e) => deleteQuestion(q, e)} title="Delete question">
-                            <Trash2 size={11} />
-                          </button>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              );
-            })}
+            {filtered.map((q) => (
+              <QuestionCard 
+                key={q.id} 
+                question={q} 
+                isAdmin={isAdmin || (user && (q as any).author_id === user.id)}
+                onDelete={(e) => deleteQuestion(q, e)}
+                onClick={() => router.push(`/questions/${q.id}`)}
+              />
+            ))}
           </div>
         )}
       </div>

@@ -117,16 +117,15 @@ export default function QuestionPage({ params }: Props) {
         solId = newSol.id;
       }
 
-      for (let i = 0; i < solutionFiles.length; i++) {
-        const f = solutionFiles[i];
+      const sol = solutions.find(s => s.id === solId);
+      const existingCount = sol?.solution_images?.length || 0;
+
+      await Promise.all(solutionFiles.map(async (f, i) => {
         const path = `solutions/${solId}/${Date.now()}_${i}.webp`;
         const { error: upErr } = await supabase.storage.from('doubt-images').upload(path, f.file, { contentType: 'image/webp' });
         if (upErr) throw upErr;
-        
-        const sol = solutions.find(s => s.id === solId);
-        const existingCount = sol?.solution_images?.length || 0;
         await supabase.from('solution_images').insert({ solution_id: solId, storage_path: path, page_order: existingCount + i });
-      }
+      }));
 
       if (question?.status === 'unsolved') {
         await supabase.from('questions').update({ status: 'in_progress' }).eq('id', id);
