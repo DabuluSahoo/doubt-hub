@@ -267,6 +267,16 @@ select option {
   cursor: pointer;
   transition: all var(--transition);
 }
+.question-card.no-thumb {
+  min-height: 140px;
+  display: flex;
+  flex-direction: column;
+}
+.question-card.no-thumb .question-card-body {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
 .question-card:hover { border-color: var(--border-hover); transform: translateY(-2px); box-shadow: var(--shadow-glow); }
 .question-card-thumb {
   width: 100%; aspect-ratio: 4/3;
