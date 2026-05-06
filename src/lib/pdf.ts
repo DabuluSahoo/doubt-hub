@@ -229,11 +229,10 @@ function addContinuousImage(doc: jsPDF, path: string, y: number, margin: number,
   const ratio = img.width / img.height;
   const h = contentWidth / ratio;
 
-  // Use shared canvas to save memory allocation
   if (!sharedCanvas) sharedCanvas = document.createElement('canvas');
   
-  // Downscale images for PDF to save space (1000px width is plenty for PDF)
-  const MAX_PDF_IMG_WIDTH = 1000;
+  // Use 800px max width for PDF - perfectly clear for A4 but much smaller file size
+  const MAX_PDF_IMG_WIDTH = 800;
   let drawW = img.width;
   let drawH = img.height;
   if (drawW > MAX_PDF_IMG_WIDTH) {
@@ -245,11 +244,12 @@ function addContinuousImage(doc: jsPDF, path: string, y: number, margin: number,
   sharedCanvas.height = drawH;
   const ctx = sharedCanvas.getContext('2d')!;
   ctx.imageSmoothingEnabled = true;
-  ctx.imageSmoothingQuality = 'high';
+  ctx.imageSmoothingQuality = 'medium';
   ctx.drawImage(img, 0, 0, drawW, drawH);
   
-  // Use slightly lower quality for PDF (0.45) to drastically save space
-  const jpegData = sharedCanvas.toDataURL('image/jpeg', 0.45);
+  // Aggressive compression for PDF (0.3 quality)
+  // This is the main fix for the file size jump
+  const jpegData = sharedCanvas.toDataURL('image/jpeg', 0.3);
   doc.addImage(jpegData, 'JPEG', margin, y, contentWidth, h, undefined, 'FAST');
   
   return y + h + 10;
