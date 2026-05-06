@@ -121,8 +121,8 @@ export default function SubjectPage({ params }: Props) {
       console.error(error);
       toast('Failed to delete question', 'error');
     } else {
+      setQuestions(prev => prev.filter(item => item.id !== q.id));
       toast('Question deleted');
-      fetchData();
     }
   };
 

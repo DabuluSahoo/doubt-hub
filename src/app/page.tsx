@@ -109,7 +109,10 @@ export default function HomePage() {
     if (!confirm('Delete this subject and all its questions?')) return;
     const { error } = await supabase.from('subjects').delete().eq('id', id);
     if (error) toast('Failed to delete', 'error');
-    else { toast('Subject deleted'); fetchSubjects(); }
+    else {
+      setSubjects(prev => prev.filter(s => s.id !== id));
+      toast('Subject deleted');
+    }
   };
 
   const filtered = subjects.filter(
