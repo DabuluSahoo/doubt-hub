@@ -125,6 +125,9 @@ async function addQuestionsToDoc(doc: jsPDF, questions: any[], startY: number, m
   for (let i = 0; i < questions.length; i++) {
     const q = questions[i];
     
+    // Yield to main thread for responsiveness
+    await new Promise(r => setTimeout(r, 0));
+
     // Page break check for title
     if (y > pageHeight - 25) {
       doc.addPage();
@@ -140,7 +143,6 @@ async function addQuestionsToDoc(doc: jsPDF, questions: any[], startY: number, m
     if (q.description) {
       doc.setFontSize(10);
       const lines = doc.splitTextToSize(q.description, contentWidth);
-      // Check if text needs page break
       if (y + (lines.length * 5) > pageHeight - 15) {
         doc.addPage();
         y = 20;
@@ -159,6 +161,9 @@ async function addQuestionsToDoc(doc: jsPDF, questions: any[], startY: number, m
     for (let j = 0; j < sols.length; j++) {
       const sol = sols[j];
       
+      // Yield to main thread
+      await new Promise(r => setTimeout(r, 0));
+
       if (y > pageHeight - 20) {
         doc.addPage();
         y = 20;
