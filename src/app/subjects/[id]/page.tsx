@@ -30,6 +30,7 @@ export default function SubjectPage({ params }: Props) {
   const [loadingMore, setLoadingMore] = useState(false);
   const [hasMore, setHasMore] = useState(true);
   const [page, setPage] = useState(0);
+  const [inputSearch, setInputSearch] = useState('');
   const [search, setSearch] = useState('');
   const [filter, setFilter] = useState<string>('all');
   const [sortBy, setSortBy] = useState<'newest' | 'oldest'>('newest');
@@ -222,8 +223,21 @@ export default function SubjectPage({ params }: Props) {
 
           <div className="filter-bar">
             <div className="search-wrap">
-              <Search size={16} className="search-icon" />
-              <input className="search-input" placeholder="Search questions..." value={search} onChange={(e) => setSearch(e.target.value)} />
+              <Search 
+                size={16} 
+                className="search-icon" 
+                style={{ cursor: 'pointer' }} 
+                onClick={() => setSearch(inputSearch)}
+              />
+              <input 
+                className="search-input" 
+                placeholder="Search and press Enter..." 
+                value={inputSearch} 
+                onChange={(e) => setInputSearch(e.target.value)} 
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') setSearch(inputSearch);
+                }}
+              />
             </div>
 
             <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
