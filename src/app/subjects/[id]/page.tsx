@@ -29,6 +29,7 @@ export default function SubjectPage({ params }: Props) {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [filter, setFilter] = useState<string>('all');
+  const [sortBy, setSortBy] = useState<'newest' | 'oldest'>('newest');
   const [showModal, setShowModal] = useState(false);
   const [files, setFiles] = useState<PreviewFile[]>([]);
   const [form, setForm] = useState({ title: '', description: '' });
@@ -130,6 +131,10 @@ export default function SubjectPage({ params }: Props) {
     const matchSearch = q.title.toLowerCase().includes(search.toLowerCase());
     const matchFilter = filter === 'all' || q.status === filter;
     return matchSearch && matchFilter;
+  }).sort((a, b) => {
+    const da = new Date(a.created_at).getTime();
+    const db = new Date(b.created_at).getTime();
+    return sortBy === 'newest' ? db - da : da - db;
   });
 
   const getThumb = (q: Question) => {
@@ -192,6 +197,16 @@ export default function SubjectPage({ params }: Props) {
                 </button>
               )}
               
+              <select 
+                className="btn btn-ghost btn-sm"
+                value={sortBy}
+                onChange={(e) => setSortBy(e.target.value as any)}
+                style={{ appearance: 'none', paddingRight: 32, cursor: 'pointer' }}
+              >
+                <option value="newest">Newest First</option>
+                <option value="oldest">Oldest First</option>
+              </select>
+
               <select 
                 className="btn btn-ghost btn-sm"
                 value={filter}
