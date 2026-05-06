@@ -41,7 +41,6 @@ function loadImage(url: string): Promise<HTMLImageElement> {
 }
 
 export async function generateSubjectPDF(subjectTitle: string, questions: any[], onProgress?: (pct: number) => void) {
-  // 1. Collect all image paths
   const allImagePaths: string[] = [];
   questions.forEach(q => {
     (q.question_images || []).forEach((img: any) => allImagePaths.push(img.storage_path));
@@ -50,28 +49,136 @@ export async function generateSubjectPDF(subjectTitle: string, questions: any[],
     });
   });
 
-  // 2. Preload all images in parallel
   await preloadImages(allImagePaths, onProgress);
 
-  const doc = new jsPDF({ compress: true });
-  let y = 20;
-  const pageWidth = doc.internal.pageSize.getWidth();
-  const pageHeight = doc.internal.pageSize.getHeight();
+  // --- 1. PRE-CALCULATE TOTAL HEIGHT ---
+  const pageWidth = 210;
   const margin = 15;
   const contentWidth = pageWidth - (margin * 2);
+  let totalHeight = 40; // Header space
 
+  for (let i = 0; i < questions.length; i++) {
+    const q = questions[i];
+    totalHeight += 15; // Title space
+    if (q.description) {
+      const tempDoc = new jsPDF();
+      const lines = tempDoc.splitTextToSize(q.description, contentWidth);
+      totalHeight += (lines.length * 5) + 5;
+    }
+    
+    // Question Images height
+    const qImgs = q.question_images || [];
+    for (const imgPath of qImgs) {
+      const img = imageCache.get(imgPath.storage_path);
+      if (img) {
+        const ratio = img.width / img.height;
+        totalHeight += (contentWidth / ratio) + 10;
+      }
+    }
+
+    // Solutions height
+    const sols = q.solutions || [];
+    for (const sol of sols) {
+      totalHeight += 10; // Sol Label
+      if (sol.text_content) {
+        const tempDoc = new jsPDF();
+        const lines = tempDoc.splitTextToSize(sol.text_content, contentWidth);
+        totalHeight += (lines.length * 5) + 5;
+      }
+      const sImgs = sol.solution_images || [];
+      for (const imgPath of sImgs) {
+        const img = imageCache.get(imgPath.storage_path);
+        if (img) {
+          const ratio = img.width / img.height;
+          totalHeight += (contentWidth / ratio) + 10;
+        }
+      }
+    }
+    totalHeight += 15; // Spacer between questions
+  }
+
+  // --- 2. GENERATE THE LONG PDF ---
+  const doc = new jsPDF({
+    orientation: 'p',
+    unit: 'mm',
+    format: [pageWidth, totalHeight],
+    compress: true
+  });
+
+  let y = 20;
   doc.setFontSize(22);
   doc.setTextColor(124, 58, 237);
   doc.text(subjectTitle, margin, y);
   y += 15;
   doc.setTextColor(0, 0, 0);
 
-  await addQuestionsToDoc(doc, questions, y, margin, contentWidth, pageHeight);
+  for (let i = 0; i < questions.length; i++) {
+    const q = questions[i];
+    doc.setFontSize(14);
+    doc.setTextColor(124, 58, 237);
+    doc.text(`Q${i + 1}: ${q.title}`, margin, y);
+    y += 8;
+    doc.setTextColor(0, 0, 0);
+
+    if (q.description) {
+      doc.setFontSize(10);
+      const lines = doc.splitTextToSize(q.description, contentWidth);
+      doc.text(lines, margin, y);
+      y += (lines.length * 5) + 5;
+    }
+
+    for (const imgInfo of (q.question_images || [])) {
+      y = addSimpleImageToPDF(doc, imgInfo.storage_path, y, margin, contentWidth);
+    }
+
+    for (let j = 0; j < (q.solutions || []).length; j++) {
+      const sol = q.solutions[j];
+      doc.setFontSize(12);
+      doc.setTextColor(34, 197, 94);
+      doc.text(`Sol ${q.solutions.length > 1 ? j + 1 : ''}`, margin, y);
+      y += 6;
+      doc.setTextColor(0, 0, 0);
+
+      if (sol.text_content) {
+        doc.setFontSize(10);
+        const lines = doc.splitTextToSize(sol.text_content, contentWidth);
+        doc.text(lines, margin, y);
+        y += (lines.length * 5) + 5;
+      }
+
+      for (const imgInfo of (sol.solution_images || [])) {
+        y = addSimpleImageToPDF(doc, imgInfo.storage_path, y, margin, contentWidth);
+      }
+    }
+    y += 10;
+  }
+
   doc.save(`${subjectTitle.replace(/\s+/g, '_')}_DoubtHub.pdf`);
 }
 
+function addSimpleImageToPDF(doc: jsPDF, path: string, y: number, margin: number, contentWidth: number) {
+  const img = imageCache.get(path);
+  if (!img) return y;
+
+  const ratio = img.width / img.height;
+  const h = contentWidth / ratio;
+
+  const canvas = document.createElement('canvas');
+  canvas.width = img.width;
+  canvas.height = img.height;
+  const ctx = canvas.getContext('2d')!;
+  ctx.drawImage(img, 0, 0);
+  const jpegData = canvas.toDataURL('image/jpeg', 0.6);
+
+  doc.addImage(jpegData, 'JPEG', margin, y, contentWidth, h, undefined, 'FAST');
+  return y + h + 10;
+}
+
 export async function generateGlobalPDF(data: { title: string, questions: any[] }[], onProgress?: (pct: number) => void) {
-  // 1. Collect all image paths
+  // Logic for global would be very similar but with subjects added to height calculation
+  // For simplicity and to avoid ultra-long PDFs that crash browsers, we will keep Global as multi-page
+  // but Subject-specific will be the "Continuous Flow" version you requested.
+  
   const allImagePaths: string[] = [];
   data.forEach(sub => {
     sub.questions.forEach(q => {
@@ -82,7 +189,6 @@ export async function generateGlobalPDF(data: { title: string, questions: any[] 
     });
   });
 
-  // 2. Preload all images in parallel
   await preloadImages(allImagePaths, onProgress);
 
   const doc = new jsPDF({ compress: true });
@@ -97,23 +203,16 @@ export async function generateGlobalPDF(data: { title: string, questions: any[] 
   y += 20;
 
   for (const subject of data) {
-    if (y > pageHeight - 40) {
-      doc.addPage();
-      y = 20;
-    }
-    
+    if (y > pageHeight - 40) { doc.addPage(); y = 20; }
     doc.setFontSize(20);
     doc.setTextColor(124, 58, 237);
     doc.text(subject.title, margin, y);
     y += 12;
     doc.setTextColor(0, 0, 0);
 
+    // Using the same adaptive multi-page logic for Global to prevent browser crashes on massive files
     y = await addQuestionsToDoc(doc, subject.questions, y, margin, contentWidth, pageHeight);
-    
-    if (y < pageHeight) {
-      doc.addPage();
-      y = 20;
-    }
+    if (y < pageHeight) { doc.addPage(); y = 20; }
   }
 
   doc.save(`DoubtHub_Full_Backup.pdf`);
@@ -121,74 +220,43 @@ export async function generateGlobalPDF(data: { title: string, questions: any[] 
 
 async function addQuestionsToDoc(doc: jsPDF, questions: any[], startY: number, margin: number, contentWidth: number, pageHeight: number) {
   let y = startY;
-
   for (let i = 0; i < questions.length; i++) {
     const q = questions[i];
-    
-    // Yield to main thread for responsiveness
     await new Promise(r => setTimeout(r, 0));
-
-    // Page break check for title
-    if (y > pageHeight - 25) {
-      doc.addPage();
-      y = 20;
-    }
-
+    if (y > pageHeight - 25) { doc.addPage(); y = 20; }
     doc.setFontSize(14);
     doc.setTextColor(124, 58, 237);
     doc.text(`Q${i + 1}: ${q.title}`, margin, y);
     y += 8;
     doc.setTextColor(0, 0, 0);
-
     if (q.description) {
       doc.setFontSize(10);
       const lines = doc.splitTextToSize(q.description, contentWidth);
-      if (y + (lines.length * 5) > pageHeight - 15) {
-        doc.addPage();
-        y = 20;
-      }
+      if (y + (lines.length * 5) > pageHeight - 15) { doc.addPage(); y = 20; }
       doc.text(lines, margin, y);
       y += (lines.length * 5) + 5;
     }
-
-    const qImgs = (q.question_images || []).sort((a: any, b: any) => a.page_order - b.page_order);
-    for (const img of qImgs) {
-      y = addCachedImageToPDF(doc, img.storage_path, y, margin, contentWidth, pageHeight);
+    for (const imgInfo of (q.question_images || [])) {
+      y = addAdaptiveImage(doc, imgInfo.storage_path, y, margin, contentWidth, pageHeight);
     }
-
-    // Solutions
-    const sols = q.solutions || [];
-    for (let j = 0; j < sols.length; j++) {
-      const sol = sols[j];
-      
-      // Yield to main thread
+    for (let j = 0; j < (q.solutions || []).length; j++) {
+      const sol = q.solutions[j];
       await new Promise(r => setTimeout(r, 0));
-
-      if (y > pageHeight - 20) {
-        doc.addPage();
-        y = 20;
-      }
-      
+      if (y > pageHeight - 20) { doc.addPage(); y = 20; }
       doc.setFontSize(12);
       doc.setTextColor(34, 197, 94);
-      doc.text(`Sol ${sols.length > 1 ? j + 1 : ''}`, margin, y);
+      doc.text(`Sol ${q.solutions.length > 1 ? j + 1 : ''}`, margin, y);
       y += 6;
       doc.setTextColor(0, 0, 0);
-
       if (sol.text_content) {
         doc.setFontSize(10);
         const lines = doc.splitTextToSize(sol.text_content, contentWidth);
-        if (y + (lines.length * 5) > pageHeight - 15) {
-          doc.addPage();
-          y = 20;
-        }
+        if (y + (lines.length * 5) > pageHeight - 15) { doc.addPage(); y = 20; }
         doc.text(lines, margin, y);
         y += (lines.length * 5) + 5;
       }
-
-      const solImgs = (sol.solution_images || []).sort((a: any, b: any) => a.page_order - b.page_order);
-      for (const img of solImgs) {
-        y = addCachedImageToPDF(doc, img.storage_path, y, margin, contentWidth, pageHeight);
+      for (const imgInfo of (sol.solution_images || [])) {
+        y = addAdaptiveImage(doc, imgInfo.storage_path, y, margin, contentWidth, pageHeight);
       }
     }
     y += 10;
@@ -196,25 +264,20 @@ async function addQuestionsToDoc(doc: jsPDF, questions: any[], startY: number, m
   return y;
 }
 
-function addCachedImageToPDF(doc: jsPDF, path: string, y: number, margin: number, contentWidth: number, pageHeight: number) {
+function addAdaptiveImage(doc: jsPDF, path: string, y: number, margin: number, contentWidth: number, pageHeight: number) {
   const img = imageCache.get(path);
   if (!img) return y;
-
-  const imgProps = doc.getImageProperties(img);
-  const ratio = imgProps.width / imgProps.height;
-  
+  const ratio = img.width / img.height;
   let drawWidth = contentWidth;
   let drawHeight = drawWidth / ratio;
   const bottomMargin = 15;
   const availableSpace = pageHeight - y - bottomMargin;
 
-  // Convert to JPEG with quality control for size reduction
   const canvas = document.createElement('canvas');
-  canvas.width = img.width;
-  canvas.height = img.height;
+  canvas.width = img.width; canvas.height = img.height;
   const ctx = canvas.getContext('2d')!;
   ctx.drawImage(img, 0, 0);
-  const jpegData = canvas.toDataURL('image/jpeg', 0.6); // 60% quality is a good balance
+  const jpegData = canvas.toDataURL('image/jpeg', 0.6);
 
   const draw = (curY: number, h: number, w: number) => {
     const xOffset = margin + (contentWidth - w) / 2;
@@ -233,13 +296,9 @@ function addCachedImageToPDF(doc: jsPDF, path: string, y: number, margin: number
       y = 20;
       drawWidth = contentWidth;
       drawHeight = drawWidth / ratio;
-      if (drawHeight > pageHeight - 40) {
-        drawHeight = pageHeight - 40;
-        drawWidth = drawHeight * ratio;
-      }
+      if (drawHeight > pageHeight - 40) { drawHeight = pageHeight - 40; drawWidth = drawHeight * ratio; }
       return draw(y, drawHeight, drawWidth);
     }
   }
-
   return draw(y, drawHeight, drawWidth);
 }
