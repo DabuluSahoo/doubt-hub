@@ -123,13 +123,44 @@ export default function HomePage() {
     
     setSaving(true);
     try {
-      // Robustly delete all questions for this subject. 
-      // Storage images will need cleanup too for a perfect fix, 
-      // but the user focused on database deletion here.
-      const { error } = await supabase.from('questions').delete().eq('subject_id', s.id);
-      if (error) throw error;
+      // 1. Get all question IDs and solution IDs first
+      const { data: qs, error: fetchError } = await supabase
+        .from('questions')
+        .select('id, solutions(id)')
+        .eq('subject_id', s.id);
       
-      toast(`All doubts cleared from ${s.name} ✓`);
+      if (fetchError) throw fetchError;
+
+      if (qs && qs.length > 0) {
+        toast(`Cleaning storage for ${qs.length} doubts...`);
+        
+        // Sequential cleanup to avoid rate limits, with progress updates
+        for (let i = 0; i < qs.length; i++) {
+          const q = qs[i];
+          if (i > 0 && i % 15 === 0) toast(`Clearing assets... ${i}/${qs.length}`);
+
+          // Delete Question Images
+          const { data: qFiles } = await supabase.storage.from('doubt-images').list(`questions/${q.id}`);
+          if (qFiles && qFiles.length > 0) {
+            await supabase.storage.from('doubt-images').remove(qFiles.map(f => `questions/${q.id}/${f.name}`));
+          }
+
+          // Delete Solution Images
+          const solId = (q as any).solutions?.[0]?.id;
+          if (solId) {
+            const { data: sFiles } = await supabase.storage.from('doubt-images').list(`solutions/${solId}`);
+            if (sFiles && sFiles.length > 0) {
+              await supabase.storage.from('doubt-images').remove(sFiles.map(f => `solutions/${solId}/${f.name}`));
+            }
+          }
+        }
+      }
+
+      // 2. Delete database records (this will also cascade to solutions if FK is set)
+      const { error: dbError } = await supabase.from('questions').delete().eq('subject_id', s.id);
+      if (dbError) throw dbError;
+      
+      toast(`Successfully cleared all content from ${s.name} ✓`);
       fetchSubjects();
     } catch (e: any) {
       toast(e.message || 'Failed to clear subject', 'error');
