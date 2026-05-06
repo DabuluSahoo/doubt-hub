@@ -12,7 +12,7 @@ const STATUS_CONFIG = {
 type QuestionCardProps = {
   question: any;
   isAdmin: boolean;
-  onDelete: (q: any, e: React.MouseEvent) => void;
+  onDelete: (e: React.MouseEvent) => void;
   onClick: () => void;
 };
 
@@ -62,7 +62,7 @@ export default function QuestionCard({ question: q, isAdmin, onDelete, onClick }
             )}
             {isAdmin && (
               <button className="btn btn-danger btn-sm btn-icon" style={{ width: 26, height: 26 }}
-                onClick={(e) => { e.stopPropagation(); onDelete(q, e); }} title="Delete question">
+                onClick={(e) => { e.stopPropagation(); onDelete(e); }} title="Delete question">
                 <Trash2 size={11} />
               </button>
             )}
