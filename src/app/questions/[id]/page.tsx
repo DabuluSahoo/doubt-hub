@@ -205,46 +205,47 @@ export default function QuestionPage({ params }: Props) {
           {question.description && <div style={{ marginTop: 16, color: 'var(--text-secondary)', lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>{question.description}</div>}
         </div>
 
-        <div className="detail-layout">
-          <div className="detail-column">
+        <div className="detail-layout-v">
+          <div className="detail-content-full">
             <div className="detail-section-title"><ImagePlus size={16} /> Question Images</div>
-            {qImages.length > 0 ? <ImageCarousel images={qImages} /> : <div className="empty-placeholder">No images provided</div>}
+            {qImages.length > 0 ? (
+              <ImageCarousel images={qImages} maxHeight={700} />
+            ) : (
+              <div className="empty-placeholder" style={{ minHeight: 200 }}>No images provided</div>
+            )}
           </div>
 
-          <div className="detail-column">
-            <div className="detail-section-title" style={{ justifyContent: 'space-between' }}>
-              <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}><FileText size={16} /> Solutions</span>
+          <div className="detail-content-full" style={{ borderTop: '1px solid var(--border)', paddingTop: 32 }}>
+            <div className="detail-section-title" style={{ justifyContent: 'space-between', marginBottom: 24 }}>
+              <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}><FileText size={16} /> Solutions ({solutions.length})</span>
               {(isAdmin || (user && solutions.length === 0)) && !editingSolutionId && (
-                <button className="btn btn-primary btn-sm" onClick={() => { setEditingSolutionId('new'); setSolutionText(''); setSolutionFiles([]); }}><Plus size={14} /> Add Solution</button>
+                <button className="btn btn-primary btn-sm" onClick={() => { setEditingSolutionId('new'); setSolutionText(''); setSolutionFiles([]); }}>
+                  <Plus size={14} /> Add Solution
+                </button>
               )}
             </div>
 
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
-              {editingSolutionId === 'new' && (
-                <div className="card" style={{ padding: 20, borderColor: 'var(--accent)' }}>
-                  <div className="solution-panel">
-                    <textarea className="rich-editor" placeholder="Write your explanation here..." value={solutionText} onChange={(e) => setSolutionText(e.target.value)} />
-                    <UploadZone onFilesChange={setSolutionFiles} label="solution images" />
-                    <div className="modal-footer" style={{ marginTop: 16 }}>
-                      <button className="btn btn-ghost" onClick={() => setEditingSolutionId(null)}>Cancel</button>
-                      <button className="btn btn-primary" onClick={saveSolution} disabled={savingSolution}>{savingSolution ? 'Saving...' : 'Post Solution'}</button>
-                    </div>
-                  </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 32 }}>
+              {!showSolution && solutions.length > 0 && (
+                <div style={{ textAlign: 'center', padding: '40px 0' }}>
+                  <button className="btn btn-primary btn-lg" onClick={() => setShowSolution(true)} style={{ padding: '16px 40px', fontSize: '1.1rem', borderRadius: 99 }}>
+                    Reveal Solution
+                  </button>
                 </div>
               )}
 
-              {solutions.length === 0 && !editingSolutionId && <div className="empty-placeholder">{user ? 'No solutions yet. Be the first to help!' : 'Login to contribute a solution'}</div>}
-
-              {solutions.map((sol) => {
+              {showSolution && solutions.map((sol) => {
                 const isEditing = editingSolutionId === sol.id;
                 const canEdit = isAdmin || (user && (sol.author_id === user.id || (!sol.author_id && sol.created_by_name === user.username)));
                 const sImgs = (sol.solution_images || []).sort((a: any, b: any) => a.page_order - b.page_order).map((i: any) => getImageUrl(i.storage_path));
 
                 return (
-                  <div key={sol.id} className="card" style={{ overflow: 'visible' }}>
+                  <div key={sol.id} className="card solution-card" style={{ overflow: 'visible' }}>
                     <div className="card-body">
-                      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 16 }}>
-                        <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>By <strong>{sol.created_by_name}</strong> • {new Date(sol.created_at).toLocaleDateString()}</div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 20 }}>
+                        <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>
+                          Answered by <strong>{sol.created_by_name}</strong> • {new Date(sol.created_at).toLocaleDateString()}
+                        </div>
                         <div style={{ display: 'flex', gap: 8 }}>
                           {canEdit && !isEditing && (
                             <>
@@ -254,6 +255,7 @@ export default function QuestionPage({ params }: Props) {
                           )}
                         </div>
                       </div>
+                      
                       {isEditing ? (
                         <div className="solution-panel">
                           <textarea className="rich-editor" value={solutionText} onChange={(e) => setSolutionText(e.target.value)} />
@@ -264,21 +266,34 @@ export default function QuestionPage({ params }: Props) {
                           </div>
                         </div>
                       ) : (
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-                          {!showSolution ? (
-                            <div className="empty-placeholder" style={{ borderStyle: 'solid', minHeight: 180 }}><button className="btn btn-primary" onClick={() => setShowSolution(true)}>Reveal Solution</button></div>
-                          ) : (
-                            <>
-                              {sImgs.length > 0 && <ImageCarousel images={sImgs} maxHeight={420} />}
-                              {sol.text_content && <div style={{ lineHeight: 1.7, whiteSpace: 'pre-wrap' }}>{sol.text_content}</div>}
-                            </>
-                          )}
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
+                          {sImgs.length > 0 && <ImageCarousel images={sImgs} maxHeight={600} />}
+                          {sol.text_content && <div style={{ fontSize: '1.05rem', lineHeight: 1.8, whiteSpace: 'pre-wrap', color: 'var(--text-secondary)' }}>{sol.text_content}</div>}
                         </div>
                       )}
                     </div>
                   </div>
                 );
               })}
+
+              {editingSolutionId === 'new' && (
+                <div className="card" style={{ padding: 24, borderColor: 'var(--accent)' }}>
+                  <div className="solution-panel">
+                    <textarea className="rich-editor" placeholder="Explain the solution clearly..." value={solutionText} onChange={(e) => setSolutionText(e.target.value)} />
+                    <UploadZone onFilesChange={setSolutionFiles} label="solution images" />
+                    <div className="modal-footer" style={{ marginTop: 20 }}>
+                      <button className="btn btn-ghost" onClick={() => setEditingSolutionId(null)}>Cancel</button>
+                      <button className="btn btn-primary" onClick={saveSolution} disabled={savingSolution}>{savingSolution ? 'Saving...' : 'Post Solution'}</button>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {solutions.length === 0 && !editingSolutionId && (
+                <div className="empty-placeholder" style={{ minHeight: 200 }}>
+                  {user ? 'No solutions yet. Be the first to help!' : 'Please login to contribute a solution.'}
+                </div>
+              )}
             </div>
           </div>
         </div>

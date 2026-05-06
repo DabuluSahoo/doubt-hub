@@ -560,10 +560,26 @@ input[type="file"] { display: none; }
   display: grid; grid-template-columns: 1fr 1fr; gap: 32px;
   align-items: flex-start;
 }
+.detail-layout-v {
+  display: flex;
+  flex-direction: column;
+  gap: 48px;
+  margin-top: 24px;
+}
+.detail-content-full {
+  width: 100%;
+}
 .detail-column {
   max-height: calc(100vh - 210px);
   overflow-y: auto;
   padding-right: 12px;
+}
+.solution-card {
+  border: 1px solid var(--border);
+  transition: border-color var(--transition);
+}
+.solution-card:hover {
+  border-color: var(--accent-dim);
 }
 /* custom scrollbar for detail-column */
 .detail-column::-webkit-scrollbar { width: 6px; }
