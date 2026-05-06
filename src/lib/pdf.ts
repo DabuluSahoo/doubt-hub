@@ -231,12 +231,25 @@ function addContinuousImage(doc: jsPDF, path: string, y: number, margin: number,
 
   // Use shared canvas to save memory allocation
   if (!sharedCanvas) sharedCanvas = document.createElement('canvas');
-  sharedCanvas.width = img.width;
-  sharedCanvas.height = img.height;
-  const ctx = sharedCanvas.getContext('2d')!;
-  ctx.drawImage(img, 0, 0);
   
-  const jpegData = sharedCanvas.toDataURL('image/jpeg', 0.6);
+  // Downscale images for PDF to save space (1000px width is plenty for PDF)
+  const MAX_PDF_IMG_WIDTH = 1000;
+  let drawW = img.width;
+  let drawH = img.height;
+  if (drawW > MAX_PDF_IMG_WIDTH) {
+    drawH = Math.round((drawH * MAX_PDF_IMG_WIDTH) / drawW);
+    drawW = MAX_PDF_IMG_WIDTH;
+  }
+
+  sharedCanvas.width = drawW;
+  sharedCanvas.height = drawH;
+  const ctx = sharedCanvas.getContext('2d')!;
+  ctx.imageSmoothingEnabled = true;
+  ctx.imageSmoothingQuality = 'high';
+  ctx.drawImage(img, 0, 0, drawW, drawH);
+  
+  // Use slightly lower quality for PDF (0.45) to drastically save space
+  const jpegData = sharedCanvas.toDataURL('image/jpeg', 0.45);
   doc.addImage(jpegData, 'JPEG', margin, y, contentWidth, h, undefined, 'FAST');
   
   return y + h + 10;
